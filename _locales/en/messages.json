@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "Listing Auditor for Amazon",
+    "description": "The name of the extension"
+  },
+  "appDesc": {
+    "message": "Scrape, Audit, and Monitor Amazon Listings. Check Listing Quality Scores (LQS), track variations, and export detailed Excel reports.",
+    "description": "The description of the extension"
+  }
+}

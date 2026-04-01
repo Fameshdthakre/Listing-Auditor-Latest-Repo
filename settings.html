@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Settings</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      padding: 0;
+      margin: 0;
+      background-color: #f5f5f7;
+      color: #333;
+      display: flex;
+      height: 100vh;
+    }
+    .sidebar {
+      width: 250px;
+      background: white;
+      border-right: 1px solid #e1e1e1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 0;
+    }
+    .sidebar-header {
+      padding: 0 20px;
+      margin-bottom: 24px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #1d1d1f;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nav-item {
+      padding: 12px 20px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #424245;
+      border-left: 3px solid transparent;
+      transition: background 0.1s;
+    }
+    .nav-item:hover {
+      background: #f5f5f7;
+    }
+    .nav-item.active {
+      background: #e8f0fe;
+      color: #0071e3;
+      border-left-color: #0071e3;
+      font-weight: 500;
+    }
+    .content {
+      flex: 1;
+      padding: 40px;
+      overflow-y: auto;
+    }
+    .section {
+      display: none;
+      max-width: 800px;
+    }
+    .section.active {
+      display: block;
+    }
+    h2 {
+      margin-top: 0;
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: #86868b;
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+    
+    /* Card Style */
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      padding: 24px;
+      margin-bottom: 24px;
+      border: 1px solid #e1e1e1;
+    }
+
+    .card h3 {
+      margin-top: 0;
+      margin-bottom: 16px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      font-size: 13px;
+      color: #1d1d1f;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      padding: 12px;
+      border: 1px solid #d2d2d7;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      resize: vertical;
+      box-sizing: border-box;
+      outline: none;
+    }
+    textarea:focus {
+      border-color: #0071e3;
+      box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
+    }
+    select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d2d2d7;
+      border-radius: 6px;
+      background: white;
+      font-size: 14px;
+      outline: none;
+    }
+    
+    .button-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background-color: #0071e3;
+      color: white;
+    }
+    .btn-primary:hover {
+      background-color: #0077ed;
+    }
+    .btn-danger {
+      background-color: white;
+      color: #ff3b30;
+      border: 1px solid #ff3b30;
+    }
+    .btn-danger:hover {
+      background-color: #fff2f2;
+    }
+
+    #status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+    }
+    .success {
+      background-color: #e8f5e9;
+      color: #1b5e20;
+      border: 1px solid #c8e6c9;
+    }
+    .error {
+      background-color: #ffebee;
+      color: #c62828;
+      border: 1px solid #ffcdd2;
+    }
+    .info-box {
+      background-color: #f5f5f7;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #6e6e73;
+      margin-bottom: 20px;
+      border: 1px solid #e1e1e1;
+    }
+    code {
+      background: #e1e1e1;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+
+    /* Table Styles */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+    th {
+      font-weight: 600;
+      color: #666;
+      background: #f9f9f9;
+    }
+    tr:hover {
+      background: #f5f5f7;
+    }
+    .action-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 4px;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    .action-btn:hover {
+      opacity: 1;
+    }
+    .delete-btn {
+      color: #ff3b30;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 20px;
+      color: #86868b;
+      font-size: 13px;
+    }
+
+    /* Switch Style */
+    .switch-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .switch-label {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 24px;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #0071e3;
+    }
+    input:checked + .slider:before {
+      transform: translateX(16px);
+    }
+    input:disabled + .slider {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Disabled Area Overlay */
+    .disabled-overlay {
+      opacity: 0.5;
+      pointer-events: none;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <img src="images/icon48.png" width="24" height="24">
+      <span>Settings</span>
+    </div>
+    <div class="nav-item active" data-target="general">General</div>
+    <div class="nav-item" data-target="ai">AI Settings</div>
+    <div class="nav-item" data-target="proxy">Proxy Settings</div>
+  </div>
+
+  <div class="content">
+    
+    <!-- General Section (Default) -->
+    <div id="general" class="section active">
+        <h2>General Configuration</h2>
+        <div class="subtitle">Global settings for the scraper.</div>
+        
+        <div class="card">
+            <div class="switch-row">
+                <div class="switch-label">Rotate User-Agents</div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="uaToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <p style="font-size:12px; color:var(--text-muted); margin-top:-10px;">
+                Randomize browser signature to avoid detection.
+            </p>
+        </div>
+
+        <div class="card">
+            <h3>Troubleshooting</h3>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom: 12px;">
+                If you experience connection issues or "No Internet", use this to force reset Chrome's network settings.
+            </p>
+            <button id="resetNetworkBtn" class="btn-danger" style="width: 100%;">Reset All Network Settings</button>
+        </div>
+    </div>
+
+    <!-- AI Configuration Section -->
+    <div id="ai" class="section">
+      <h2>AI Configuration</h2>
+      <div class="subtitle">Set up AI to generate Smart Selectors for custom rules.</div>
+      
+      <div class="card">
+        <h3>AI Provider Settings</h3>
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom: 16px;">
+          Configure your preferred AI provider to assist in generating resilient CSS/XPath selectors based on elements you pick.
+        </p>
+
+        <div class="form-group">
+          <label for="aiProvider">AI Provider</label>
+          <select id="aiProvider">
+            <option value="none">None (Use Built-in Heuristics)</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="custom">Custom Endpoint</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="aiApiKeyGroup" style="display:none;">
+          <label for="aiApiKey">API Key</label>
+          <div style="position: relative; display: flex; align-items: center;">
+            <input type="password" id="aiApiKey" style="width: 100%; padding: 10px; padding-right: 40px; border: 1px solid #d2d2d7; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none;">
+            <button id="toggleApiKeyVisibility" style="position: absolute; right: 8px; background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center;" title="Show/Hide API Key">
+              <svg id="eyeIconOpen" style="display: none;" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <svg id="eyeIconClosed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group" id="aiModelGroup" style="display:none;">
+          <label for="aiModel">Model</label>
+          <input type="text" id="aiModel" list="aiModelList" placeholder="Select or enter model name" style="width: 100%; padding: 10px; border: 1px solid #d2d2d7; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none;">
+          <datalist id="aiModelList">
+             <!-- Options populated by JS based on provider -->
+          </datalist>
+        </div>
+        
+        <div class="form-group" id="aiCustomEndpointGroup" style="display:none;">
+          <label for="aiCustomEndpoint">Custom API Endpoint URL</label>
+          <input type="text" id="aiCustomEndpoint" placeholder="https://api.yourprovider.com/v1/chat/completions" style="width: 100%; padding: 10px; border: 1px solid #d2d2d7; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none;">
+        </div>
+
+        <div class="button-row">
+          <button id="saveAiConfigBtn" class="btn-primary" style="width: 100%;">Save AI Settings</button>
+        </div>
+        <div id="aiStatus" style="margin-top: 16px; padding: 12px; border-radius: 6px; font-size: 13px; display: none;"></div>
+      </div>
+    </div>
+
+    <!-- Proxy Section -->
+    <div id="proxy" class="section">
+      <h2>Proxy Configuration</h2>
+      <div class="subtitle">Manage custom proxies for scraping rotation.</div>
+
+      <!-- Master Switch -->
+      <div class="card" style="padding: 16px;">
+          <div class="switch-row" style="margin-bottom:0;">
+              <div class="switch-label">Enable Proxy Rotation</div>
+              <label class="toggle-switch">
+                  <input type="checkbox" id="proxyToggle">
+                  <span class="slider"></span>
+              </label>
+          </div>
+      </div>
+
+      <div id="proxyControls">
+          <!-- Add New Proxies Card -->
+          <div class="card">
+            <h3>Add New Proxies</h3>
+            <div class="info-box">
+              <strong>Supported Formats:</strong><br>
+              1. <code>IP:Port:User:Pass</code> (Standard)<br>
+              2. <code>Protocol://IP:Port:User:Pass</code><br>
+              3. <code>Protocol://User:Pass@IP:Port</code> (URL Style)<br>
+              <br>
+              <strong>Protocols:</strong> <code>http</code>, <code>https</code>, <code>socks4</code>, <code>socks5</code>
+            </div>
+
+            <div class="form-group">
+              <label for="defaultProtocol">Default Protocol (if not specified in input)</label>
+              <select id="defaultProtocol">
+                <option value="http">HTTP</option>
+                <option value="https">HTTPS</option>
+                <option value="socks4">SOCKS4</option>
+                <option value="socks5">SOCKS5</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="proxyInput">Bulk Input (Paste List)</label>
+              <textarea id="proxyInput" placeholder="192.168.1.1:8000:user:pass&#10;http://10.0.0.1:8080&#10;socks5://user:pass@1.2.3.4:1080"></textarea>
+            </div>
+
+            <div class="button-row" style="margin-top: 16px;">
+              <button id="addBtn" class="btn-primary">Add to List</button>
+            </div>
+          </div>
+
+          <!-- Managed List Card -->
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h3>Saved Proxies (<span id="proxyCount">0</span>)</h3>
+                <div style="display:flex; gap:8px;">
+                    <button id="checkAllBtn" class="btn-primary" style="font-size:12px; padding:6px 12px;">Check All</button>
+                    <button id="deleteAllBtn" class="btn-danger" style="font-size:12px; padding:6px 12px;">Delete All</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="testUrl">Test Target URL</label>
+                <input type="text" id="testUrl" value="https://www.amazon.com" style="width:100%; padding:8px; box-sizing:border-box; border:1px solid #d2d2d7; border-radius:6px; font-size:13px;">
+            </div>
+            
+            <div style="overflow-x:auto;">
+                <table id="proxyTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">Proto</th>
+                            <th>Host</th>
+                            <th style="width: 50px;">Port</th>
+                            <th>User</th>
+                            <th style="width: 80px;">Status</th>
+                            <th style="width: 50px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Injected by JS -->
+                    </tbody>
+                </table>
+                <div id="emptyState" class="empty-state">No proxies saved.</div>
+            </div>
+            
+            <div class="button-row">
+                <button id="saveConfigBtn" class="btn-primary" style="width:100%;">Save Changes & Activate</button>
+            </div>
+            <div id="status"></div>
+          </div>
+      </div>
+    </div>
+
+  </div>
+  <script src="settings.js"></script>
+</body>
+</html>

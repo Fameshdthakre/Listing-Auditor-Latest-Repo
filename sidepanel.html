@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="app-container">
+    <div class="top-bar">
+        <div>
+            <h2>
+                <img src="images/icon48.png" class="app-logo" alt="Logo">
+                Listing Auditor <span class="badge">v1.1.2</span>
+            </h2>
+            <div class="subtitle" style="font-size: 11px; color: var(--text-muted); margin-left: 36px; margin-top: -2px;">For Amazon</div>
+        </div>
+        <div class="auth-actions" id="authActions">
+            <button id="settingsBtn" class="auth-btn" title="Settings" aria-label="Settings">⚙️</button>
+            <button id="helpBtn" class="auth-btn" title="How to use" aria-label="Help">❓</button>
+            <button id="themeToggle" class="auth-btn" title="Toggle Dark/Light Mode" aria-label="Toggle color theme">🌙</button>
+            <button id="loginBtn" class="auth-btn" style="background:var(--primary); color:#fff; border:none; box-shadow: var(--shadow-sm); font-weight:700;">Login</button>
+            <button id="logoutBtn" class="auth-btn btn-logout">Logout</button>
+        </div>
+    </div>
+    
+    <div id="megaModeSwitch" class="mega-switch-container">
+        <label class="mega-option">
+            <input type="radio" name="megaMode" value="scraper" checked>
+            <span class="mega-option-label">
+                <span>🔎</span> Scraper Mode
+            </span>
+        </label>
+        <label class="mega-option">
+            <input type="radio" name="megaMode" value="auditor">
+            <span class="mega-option-label">
+                <span>🛡️</span> Auditor Mode
+            </span>
+        </label>
+    </div>
+
+    <!-- Bulk Section Header -->
+    <button id="tabBulk" class="accordion-header expanded">
+        <span class="header-title">📂 Bulk / CSV Import</span>
+        <span class="chevron">▼</span>
+    </button>
+    
+    <div id="bulkSection" class="accordion-content expanded">
+      <div id="guestPromo" style="display:none; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 1px solid #bae6fd; padding: 10px; border-radius: 6px; margin-bottom: 12px; text-align: center;">
+          <div style="font-size: 12px; font-weight: 700; color: #0369a1; margin-bottom: 4px;">🚀 Unlock Pro Features</div>
+          <div style="font-size: 11px; color: #0c4a6e;">Login to get Unlimited Bulk Scrapes, Cloud Export & Excel Split View.</div>
+      </div>
+      <div class="bulk-hint" id="bulkHintText">
+          Upload CSV (Header: ASINs/URLs) or Paste below ASINs/Links
+      </div>
+      <div style="margin-bottom: 12px;">
+          <div class="file-input-wrapper" style="margin-bottom: 8px;">
+            <input type="file" id="csvInput" accept=".csv, .txt">
+          </div>
+          <div style="margin-bottom: 8px;">
+             <textarea id="bulkInput" placeholder="Paste ASINs or URLs here..." style="width: 100%; height: 80px; padding: 8px; box-sizing: border-box; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; resize: vertical;"></textarea>
+          </div>
+          <div style="display:flex; gap:8px;">
+              <button id="importCatalogueBtn" style="display:none !important; flex:1; padding: 10px; font-size: 12px; background: rgba(255, 237, 213, 0.5); border: 2px dashed #fb923c; color: #c2410c; font-weight: 700; cursor: pointer; border-radius: 6px;">
+                 📥 Import Catalogue
+              </button>
+          </div>
+          <button id="downloadAuditTemplateBtn" style="width:100%; margin-top:8px; padding:8px; font-size:11px; background:var(--bg); border:1px solid var(--border); border-radius:4px; cursor:pointer; display:none;">
+              📥 Download Comparison Template (Audit Type 2)
+          </button>
+          <div id="inputCountDisplay" style="text-align:center; font-size:10px; color:var(--text-muted); margin-top:4px;">
+              Loaded: 0 items
+          </div>
+      </div>
+      <div class="bulk-controls">
+          <div class="control-row" style="align-items:flex-start; flex-direction:column;">
+              <label style="margin-bottom:4px; display:flex; justify-content:space-between; width:100%;">
+                  <span>Batch Processing Option</span>
+              </label>
+              <div style="font-size:11px; display:flex; flex-direction:column; gap:6px; margin-bottom: 8px;">
+                  <label style="cursor:pointer;"><input type="radio" name="batchMode" value="random" checked> Randomised Batch (Default)</label>
+                  <label style="cursor:pointer;"><input type="radio" name="batchMode" value="fixed"> Fixed Batch Operation</label>
+                  <div id="fixedBatchSettings" style="display:flex; gap:8px; align-items:center; margin-top:2px;">
+                      <label style="display:flex; align-items:center; gap:4px;" title="Max 30">Max Size: <input type="number" id="fixedBatchSize" value="5" min="1" max="30" style="width:40px; padding:2px;"></label>
+                      <label style="display:flex; align-items:center; gap:4px;" title="Delay in Seconds">Max Wait: <input type="number" id="fixedBatchWait" value="15" min="1" style="width:40px; padding:2px;"></label>
+                  </div>
+              </div>
+              <label style="margin-bottom:4px; display:flex; justify-content:space-between; width:100%;">
+                  <span>Marketplaces & Zipcodes</span>
+                  <label style="font-weight:400; font-size:10px; cursor:pointer; font-weight: bold;"><input type="checkbox" id="selectAllDomains"> Select All</label>
+              </label>
+              <div id="domainContainer" style="border:1px solid var(--border); background:var(--bg); border-radius:6px; padding:8px; max-height:200px; overflow-y:auto; width:100%; box-sizing:border-box; font-size:11px; display:flex; flex-direction:column; gap:6px;">
+                  <!-- Checkboxes injected by JS -->
+              </div>
+          </div>
+          <div class="control-row">
+              <label>Language</label>
+              <div class="segmented-control">
+                  <input type="radio" name="langPref" id="langEnglish" value="english" checked>
+                  <label for="langEnglish">English</label>
+                  <input type="radio" name="langPref" id="langNative" value="native">
+                  <label for="langNative">Native</label>
+              </div>
+          </div>
+          <div class="control-row">
+              <label>Image Options</label>
+              <div class="segmented-control">
+                  <input type="radio" name="imgPref" id="imgEnable" value="enable" checked>
+                  <label for="imgEnable">Enable</label>
+                  <input type="radio" name="imgPref" id="imgDisable" value="disable">
+                  <label for="imgDisable">Disable</label>
+              </div>
+          </div>
+          <div id="imgWarning" style="display:none; font-size:10px; color:#c2410c; background:#ffedd5; padding:6px; border-radius:4px; margin-top:4px; border:1px solid #fed7aa;">
+              ⚠️ <strong>Warning:</strong> Disabling images may prevent AOD offers, Brand Story, and A+ content from loading correctly.
+          </div>
+      </div>
+      <div id="fileStatus" style="font-size:11px; color:var(--success); margin-top:8px; font-weight:600;"></div>
+    </div>
+
+    <!-- Catalogue Section Header -->
+    <button id="tabCatalogueSetup" class="accordion-header expanded" style="display:none;">
+        <span class="header-title">📖 Catalogue Setup</span>
+        <span class="chevron">▼</span>
+    </button>
+
+    <div id="catalogueSection" class="accordion-content expanded" style="display:none;">
+        <div style="background:rgba(251, 146, 60, 0.1); border:1px solid rgba(251, 146, 60, 0.3); color:#c2410c; padding:8px; border-radius:6px; font-size:11px; margin-bottom:12px; text-align:center;">
+            🚧 <strong>Experimental Mode</strong>: Auditor features are currently in beta.
+        </div>
+
+        <div style="display:flex; gap:6px; margin-bottom:12px;">
+             <button id="downloadCatalogueTemplateBtn" style="flex:1; padding:8px; font-size:11px; background:var(--primary); color:#fff; font-weight:bold; border:1px solid var(--border); border-radius:4px; cursor:pointer;">
+                📥 Download Template
+            </button>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div class="search-group">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="globalCatalogSearch" placeholder="Search ASIN across all catalogs...">
+            </div>
+            <div id="catalogueLimitMsg" style="font-size:10px; color:var(--text-muted); margin-left: 8px;">Limit: 10 (Free)</div>
+        </div>
+
+        <div style="display:flex; gap:6px; margin-bottom:12px; align-items:center;">
+            <select id="catalogueSelect" style="flex:1;"></select>
+            <button id="manageCatalogsBtn" title="Manage & Sort Catalogs" aria-label="Manage catalogs" style="padding:6px; width:auto; flex:none;">⚙️</button>
+        </div>
+
+        <div style="margin-bottom:12px; padding:12px; border:1px dashed var(--border); border-radius:6px; background:var(--bg); text-align:center;" id="dragDropArea">
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Drag & Drop Template Here to Create New Catalog</div>
+            <button id="triggerImportBtn" style="padding:6px 12px; font-size:11px; background:var(--surface); color:var(--text-main); border:1px solid var(--border); border-radius:4px; cursor:pointer;">
+                or Click to Upload
+            </button>
+            <input type="file" id="catalogueInput" accept=".xlsx" style="display:none;">
+            <div id="catalogueImportStatus" style="font-size:10px; color:var(--text-muted); margin-top:4px;"></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+             <div style="display:flex; flex-direction:column;">
+                 <span style="font-size:11px; font-weight:600;">Items in Catalogue</span>
+                 <span id="catalogueMeta" style="font-size:9px; color:var(--text-muted);">-</span>
+             </div>
+             <div style="display:flex;">
+                 <button id="exportCatalogueBtn" style="background:transparent; border:none; color:var(--primary); font-size:10px; text-decoration:underline; cursor:pointer; padding:0; margin-right:8px;">Export Full</button>
+                 <button id="clearCatalogueBtn" style="background:transparent; border:none; color:var(--danger); font-size:10px; text-decoration:underline; cursor:pointer; padding:0;">Clear Items</button>
+             </div>
+        </div>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 10px; font-weight: 700; padding: 4px 8px; color: var(--text-muted); border-bottom: 1px solid var(--border);">
+            <span>ASIN / TITLE</span>
+            <span style="text-align:center">LAST SCAN</span>
+            <span style="text-align:right">STATUS</span>
+        </div>
+        
+        <div id="catalogueItems" style="max-height: 250px; overflow-y: auto;">
+            <div style="padding:10px; text-align:center; color:var(--text-muted); font-size:11px;">Catalogue is empty.</div>
+        </div>
+        
+        <div id="catalogueCount" style="font-size:10px; color:var(--text-muted); text-align:center; margin: 8px 0;">Loaded: 0 items</div>
+        
+        <div style="margin-bottom: 12px;">
+            <div style="font-size:11px; font-weight:600; margin-bottom:4px;">Image Audit Source</div>
+            <div class="segmented-control" style="width:100%;">
+                <input type="radio" name="imageAuditSource" id="imgSrcCatalogue" value="catalogue" checked>
+                <label for="imgSrcCatalogue" style="flex:1; text-align:center;">Catalogue</label>
+                
+                <input type="radio" name="imageAuditSource" id="imgSrcVC" value="vc">
+                <label for="imgSrcVC" style="flex:1; text-align:center;">Vendor Central</label>
+                
+                <input type="radio" name="imageAuditSource" id="imgSrcSC" value="sc">
+                <label for="imgSrcSC" style="flex:1; text-align:center;">Seller Central</label>
+            </div>
+            <div id="vcPortalWarning" class="warning-box" style="display:none; margin-top:8px; background:#fff7ed; border:1px solid #fed7aa; padding:8px; border-radius:6px; font-size:11px; color:#c2410c; display:flex; gap:8px; align-items:start;">
+                <svg class="warning-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2L1 21h22L12 2zm1 16h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                <span><strong>Vendor Central:</strong> Ensure you are logged into VC and the correct account is active.</span>
+            </div>
+            <div id="scPortalWarning" class="warning-box" style="display:none; margin-top:8px; background:#fff7ed; border:1px solid #fed7aa; padding:8px; border-radius:6px; font-size:11px; color:#c2410c; display:flex; gap:8px; align-items:start;">
+                <svg class="warning-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2L1 21h22L12 2zm1 16h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                <span><strong>Seller Central:</strong> Ensure you are logged into SC and the correct account is active.</span>
+            </div>
+        </div>
+
+        <button id="auditCatalogueBtn" style="width: 100%; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px;">
+             🛡️ AUDIT CATALOGUE
+        </button>
+    </div>
+
+    <!-- Scraping Configuration Container -->
+    <div id="scrapingConfig" class="options-container">
+      <div class="options-header">
+        <span>Scraping Configuration</span>
+        <label style="cursor:pointer; display:flex; align-items:center;">
+            <input type="checkbox" id="selectAll" checked style="margin-right:4px;"> Select All
+        </label>
+      </div>
+      
+      <div id="attributesGrid" class="attributes-container">
+        <!-- GROUP 1: Identity (Default) -->
+        <div class="config-group">
+            <div class="group-header">
+                <div class="section-label">
+                    <span>Product Identity & Metadata</span>
+                </div>
+            </div>
+            <div class="group-items">
+                <div style="font-size:11px; color:var(--text-muted); padding:4px 0;">
+                    Always includes: Marketplace, Brand, Query ASIN, Page ASIN, Title, URL, Location, Stock Status.
+                </div>
+            </div>
+        </div>
+
+        <!-- GROUP 2: Offer, Price & Delivery -->
+        <div class="config-group">
+            <div class="group-header collapsible expanded">
+                <span class="chevron">▼</span>
+                <div class="section-label">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" class="group-select" data-group="offer" checked>
+                        <span>Offer, Price & Delivery</span>
+                    </div>
+                </div>
+            </div>
+            <div class="group-items grid-2-col expanded">
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox group-offer" value="displayPrice" checked> Price</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox group-offer" value="stockStatus" checked> Stock Status</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox group-offer" value="basisPrice" checked> Basis Price (RRP)</label></div>
+                <!-- Combined Checkbox for Ships From & Sold By -->
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-offer" value="shipsSoldMerged" checked disabled> Ships From / Sold By</label></div>
+                
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-offer" value="freeDeliveryDate" checked disabled> Free Delivery</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-offer" value="primeOrFastestDeliveryDate" checked disabled> Prime / Fastest Delivery</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-offer" value="paidDeliveryDate" checked disabled> Paid Delivery</label></div>
+                <div></div>
+
+                <!-- AOD Subgroup -->
+                <div style="grid-column: span 2; margin-top:8px; padding-top:4px; border-top:1px dashed var(--border);">
+                    <div class="checkbox-item" style="font-weight:600; margin-bottom:4px;">
+                        <label><input type="checkbox" class="attr-checkbox pro-feature group-offer" value="scrapeAOD"> Scrape All Offers (AOD)</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- GROUP 3: Content & Quality -->
+        <div class="config-group">
+            <div class="group-header collapsible expanded">
+                <span class="chevron">▼</span>
+                <div class="section-label">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" class="group-select" data-group="content" checked>
+                        <span>Content & Quality</span>
+                        <span class="lock-icon" style="display:none;">🔒</span>
+                    </div>
+                </div>
+            </div>
+            <div class="group-items grid-2-col expanded">
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="lqs" checked> Listing Quality Score</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="lqsDetails" checked> LQS Breakdown</label></div>
+
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="categories" checked> Categories</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="hasBullets" checked> Has Bullets?</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="bulletsCount" checked> Bullet Count</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="bullets" checked> Bullet Text</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="hasDescription" checked> Has Description?</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="description" checked> Description Text</label></div>
+
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="imgVariantCount" checked> Image Count</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="imgVariantDetails" checked> Image Details</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="hasVideo" checked> Has Video?</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="videoCount" checked> Video Count</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="videos" checked> Video Links</label></div>
+
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="hasAplus" checked> Has A+ Content?</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="aPlusImgs" checked> A+ Content Links</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="aPlusCarouselImgs" checked> Carousel A+ Links</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="hasBrandStory" checked> Has Brand Story?</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="brandStoryImgs" checked> Brand Story Links</label></div>
+                
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="hasSizeChart" checked> Dynamic Size Chart</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="hasComparisonChart" checked> Has Comparison Chart?</label></div>
+                <!-- Group checkbox for Comparison Details -->
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-content" value="comparisonDetailsGroup" checked> Comparison Chart Details</label></div>
+            </div>
+        </div>
+
+        <!-- GROUP 4: Variations -->
+        <div class="config-group">
+            <div class="group-header collapsible expanded">
+                <span class="chevron">▼</span>
+                <div class="section-label">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" class="group-select" data-group="variations" checked>
+                        <span>Variations</span>
+                        <span class="lock-icon" style="display:none;">🔒</span>
+                    </div>
+                </div>
+            </div>
+            <div class="group-items grid-2-col expanded">
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-variations" value="variationExists" checked> Has Variations?</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-variations" value="queryASIN_variation_theme" checked> Query ASIN Theme</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-variations" value="variationTheme" checked> Variation Theme</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-variations" value="variationCount" checked> Variation Count</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-variations" value="variationFamily" checked> Child ASINs</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-variations" value="variationFamilyAsinsMap" checked> Family Map</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-variations" value="variationFamilyDetails" checked> Family Details</label></div>
+            </div>
+        </div>
+
+        <!-- GROUP 5: Performance & Social -->
+        <div class="config-group">
+            <div class="group-header collapsible expanded">
+                <span class="chevron">▼</span>
+                <div class="section-label">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" class="group-select" data-group="performance" checked>
+                        <span>Performance & Social</span>
+                    </div>
+                </div>
+            </div>
+            <div class="group-items grid-2-col expanded">
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox group-performance" value="rating" checked> Rating (Stars)</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox group-performance" value="reviews" checked> Review Count</label></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="attr-checkbox pro-feature group-performance" value="bsr" checked> Best Sellers Rank</label></div>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW: Custom Rules Container -->
+    <div id="customRulesConfig" class="options-container">
+      <div class="options-header collapsible expanded" style="cursor:pointer;" id="customRulesHeader">
+        <span>Custom Extraction Rules</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="attributes-container expanded" id="customRulesBody" style="padding: 12px 16px;">
+          <p style="font-size:11px; color:var(--text-muted); margin-top:0;">Define custom attributes to extract from the page. Click "Select Element" to point and click on the Amazon page.</p>
+          
+          <div id="customRulesList" style="display:flex; flex-direction:column; gap:8px; margin-bottom: 12px; max-height: 150px; overflow-y:auto; border:1px solid var(--border); border-radius:6px; padding:4px; background:var(--bg-input);">
+              <!-- Rules injected here -->
+          </div>
+
+          <div style="display:flex; gap:8px;">
+              <button id="addCustomRuleBtn" class="secondary-btn hover-btn" style="flex:1; margin-top:0; padding:8px 14px; font-size:13px; font-weight:600; border-radius:6px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:6px; border:1px dashed var(--primary); background-color:rgba(99, 102, 241, 0.05); transition:all 0.2s ease; color:var(--primary); box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                  + Add Custom Rule
+              </button>
+              <button id="exportCustomRulesBtn" class="secondary-btn hover-btn" style="flex:1; padding:8px 14px; font-size:13px; font-weight:600; border-radius:6px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:6px; border:1px solid #d1d5db; background-color:#ffffff; transition:all 0.2s ease; color:#374151; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="Export Rules to JSON">
+                  📤 Export
+              </button>
+              <button id="importCustomRulesBtn" class="secondary-btn hover-btn" style="flex:1; padding:8px 14px; font-size:13px; font-weight:600; border-radius:6px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:6px; border:1px solid #d1d5db; background-color:#ffffff; transition:all 0.2s ease; color:#374151; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="Import Rules from JSON">
+                  📥 Import
+              </button>
+              <input type="file" id="importCustomRulesInput" accept=".json" style="display:none;">
+          </div>
+      </div>
+    </div>
+
+    <!-- NEW: Audit Configuration Container -->
+    <div id="auditConfig" class="options-container" style="display:none;">
+      <div class="options-header">
+        <span>Audit Configuration</span>
+        <label style="cursor:pointer; display:flex; align-items:center;">
+            <input type="checkbox" id="auditSelectAll" checked style="margin-right:4px;"> Select All
+        </label>
+      </div>
+
+      <div class="attributes-container">
+        <div class="config-group">
+            <div class="group-header collapsible expanded">
+                <span class="chevron">▼</span>
+                <div class="section-label">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" class="group-select" data-group="audit" checked>
+                        <span>Audit Points</span>
+                    </div>
+                </div>
+            </div>
+            <div class="group-items grid-2-col expanded">
+                <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditContent" checked> Content Audit</label><span class="info-icon" data-tooltip="Checks if Title, Brand, Bullets, and Description match your Catalogue. Ensures key keywords and brand consistency are maintained.">ⓘ</span></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditGrowth" checked> Growth Audit</label><span class="info-icon" data-tooltip="Verifies if the current Rating and Review Count meets, reduces, or exceeds your baseline expectations. Helps monitor social proof and sentiment.">ⓘ</span></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditImage" checked> Image Audit</label><span class="info-icon" data-tooltip="Validates the total number of images and checks for specific image variants (e.g., MAIN, PT01) for missing or added to ensure full visual compliance.">ⓘ</span></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditVideo" checked> Video Audit</label><span class="info-icon" data-tooltip="Checks for the presence of video content and verifies if specific video titles match your expected list, ensuring rich media coverage.">ⓘ</span></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditBrandStory" checked> Brand Story Audit</label><span class="info-icon" data-tooltip="Confirms the presence of a 'From the Brand' story section. Essential for brand equity and enhanced A+ content visibility.">ⓘ</span></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditAplus" checked> A+ Content Audit</label><span class="info-icon" data-tooltip="Verifies if A+ Content (Enhanced Brand Content) is live on the page, and that what you approved. Crucial for conversion rates and detailed product storytelling.">ⓘ</span></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditComparison" checked> Comparison Chart Audit</label><span class="info-icon" data-tooltip="Checks if specific Comparison ASINs are present in the comparison module. Prevents competitors from hijacking cross-sell opportunities.">ⓘ</span></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditVariation" checked> Variation Family Audit</label><span class="info-icon" data-tooltip="Audits the Variation Family. Checks variation count, theme, and ensures all expected child ASINs are present and accounted for.">ⓘ</span></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditBuyBox" checked> BuyBox (Price, Ships, Sold)</label><span class="info-icon" data-tooltip="Monitors BuyBox status. Verifies if Price matches expectations and checks 'Sold By' / 'Ships From' seller information.">ⓘ</span></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditDelivery" checked> Delivery Promise Audit</label><span class="info-icon" data-tooltip="Checks delivery promises. Verifies if the product meets max delivery days (e.g. <2 days) or has Prime/Free delivery status.">ⓘ</span></div>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button id="scanBtn">Start Audit (Current Tabs)</button>
+      <button id="stopBtn">Stop Scanning</button>
+    </div>
+
+    <div id="progressContainer"><div id="progressBar"></div></div>
+    
+    <div style="text-align: center; margin-bottom: 12px;">
+        <div id="status" role="status" aria-live="polite" style="font-weight: 500; font-size: 12px; color: var(--text-muted);">Ready to scan.</div>
+        <div id="progressCount" style="font-size: 11px; color: var(--primary); font-weight: 600; display: none;">Processed: 0 / 0</div>
+    </div>
+    
+    <div id="dashboardView">
+      <div class="dash-card">
+        <div class="dash-label">Audited</div>
+        <div class="dash-value" id="statTotal">-</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-label">Avg LQS</div>
+        <div class="dash-value" id="statLqs">-</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-label">Issues</div>
+        <div class="dash-value bad" id="statIssues">-</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-label">Duration</div>
+        <div class="dash-value" id="statDuration">-</div>
+      </div>
+    </div>
+
+    <div id="resultsPlaceholder" class="results-placeholder">
+        <div class="placeholder-icon">📊</div>
+        <div class="placeholder-text">
+            <strong>Ready to Audit</strong>
+            <p style="margin:4px 0;">Results will be summarized here after scanning.</p>
+            <p class="placeholder-hint">You can keep this panel open to monitor progress</p>
+        </div>
+    </div>
+
+    <!-- Live Agent Console -->
+    <div id="agentConsole" class="agent-console" style="display:none;">
+        <div class="agent-header">
+             <div class="agent-title-row">
+                <span class="agent-icon">🤖</span>
+                <span class="agent-title">AGENT STATUS</span>
+             </div>
+             <div class="agent-mode-badge" id="agentModeBadge">ACTIVE</div>
+        </div>
+        
+        <div class="agent-status-msg" id="agentStatusMsg">Initializing...</div>
+
+        <div class="agent-grid">
+            <div class="agent-stat-box">
+                <div class="stat-label">Marketplace</div>
+                <div class="stat-value" id="agentCurrentDomain">-</div>
+            </div>
+            <div class="agent-stat-box">
+                <div class="stat-label">Next Up</div>
+                <div class="stat-value" id="agentNextDomain">-</div>
+            </div>
+            <div class="agent-stat-box">
+                <div class="stat-label">Progress</div>
+                <div class="stat-value" id="agentProgress">-</div>
+            </div>
+             <div class="agent-stat-box">
+                <div class="stat-label">Batch Size</div>
+                <div class="stat-value" id="agentBatchSize">-</div>
+            </div>
+        </div>
+
+        <div class="agent-footer-row">
+            <div class="stat-label">Next Batch In: <span id="agentTimer" class="timer-value">-</span></div>
+            <div class="agent-note">* Keep window open.</div>
+        </div>
+    </div>
+    
+    <div style="display:flex; flex-direction: column; gap:8px;">
+        <div style="display:flex; gap:8px;">
+            <button id="previewBtn" class="action-btn" style="flex:1; margin-top:0; background:rgba(37,99,235,0.1); color:var(--primary); border-color:rgba(37,99,235,0.3);">👁️ Preview</button>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button id="downloadBtn" class="action-btn" style="flex:1; margin-top:0;">CSV</button>
+            <button id="downloadXlsxBtn" class="action-btn" style="flex:1; margin-top:0; background:rgba(34,197,94,0.1); color:var(--success); border-color:rgba(34,197,94,0.3);">XLSX (Pro)</button>
+        </div>
+        
+        <button id="downloadErrorsBtn" class="action-btn" style="margin-top:0; background:#fef2f2; color:#b91c1c; border-color:#fca5a5; display:none;">⚠️ Download Failed ASINs (CSV)</button>
+
+        <div style="display:flex; gap:8px;">
+            <button id="pushSheetBtn" class="action-btn" style="flex:1; margin-top:0; background:#f0fdf4; color:#15803d; border-color:#86efac; font-weight:700;">
+                Google Sheet
+            </button>
+            <button id="pushExcelBtn" class="action-btn" style="flex:1; margin-top:0; background:#f0f9ff; color:#0369a1; border-color:#7dd3fc; font-weight:700;">
+                Excel Online
+            </button>
+        </div>
+        
+        <div id="clearSection" style="display:none;">
+            <button id="clearBtn" class="action-btn" style="display:block; width:100%; background:var(--surface); border-color:var(--danger); color:var(--danger); margin-top:0;">Clear Output / Reset</button>
+            <div id="clearConfirmMsg" style="display:none; text-align:center; margin-top:4px; font-size:11px; color:var(--danger);">
+                <strong>Warning:</strong> Unsaved data will be lost.<br>
+            </div>
+        </div>
+    </div>
+
+    <div class="signature">
+        <div class="brand-line">Created with ❤️ by <strong><a href="https://www.linkedin.com/in/famesh-thakre-6a2825118" target="_blank" style="color: inherit; text-decoration: none;">TransFamesh</a></strong>.</div>
+        <div class="footer-links">
+            <a id="feedbackLink">Feedback & Suggestions</a>
+            <span class="sep">•</span>
+            <a href="https://sites.google.com/view/listing-auditor-for-amazon/privacy-policy" target="_blank">Privacy Policy</a>
+            <span class="sep">•</span>
+            <a href="https://sites.google.com/view/listing-auditor-for-amazon/terms-and-conditions" target="_blank">Terms & Conditions</a>
+        </div>
+        <div style="text-align: center; margin-top: 8px;">
+            <a href="https://chromewebstore.google.com/detail/listing-auditor-for-amazo/eaafadfoabnnmbbgciiikcngpmmlglkh" target="_blank" style="color: var(--primary); font-size: 11px; text-decoration: none; font-weight: 600;">
+                Enjoying the app? Rate us 5 🌟 stars & leave a review!
+            </a>
+        </div>
+    </div>
+  </div>
+
+  <dialog id="previewModal">
+      <div class="modal-header">
+          <span>Audit Preview</span>
+          <button id="closeModalBtn" aria-label="Close preview modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+      </div>
+      <div class="modal-footer">
+          <button id="modalDownloadBtn" class="auth-btn" style="background:var(--primary); color:#fff; width:auto; display:inline-flex;">Download XLSX</button>
+      </div>
+  </dialog>
+
+  <dialog id="chartModal">
+      <div class="modal-header">
+          <span>Price History</span>
+          <button id="closeChartBtn" aria-label="Close chart modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="height:300px; padding:10px;">
+          <canvas id="historyChart"></canvas>
+      </div>
+  </dialog>
+
+  <dialog id="inputModal">
+      <div class="modal-header">
+          <span id="inputModalTitle">Catalogue Name</span>
+          <button id="closeInputModalBtn" aria-label="Close input modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+          <input type="text" id="catalogueNameInput" placeholder="Enter name..." style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 12px; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">
+          
+          <label style="display:block; font-size:11px; margin-bottom:4px; font-weight:600;">Default Marketplace</label>
+          <select id="catalogueMarketSelect" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 12px; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">
+              <!-- Populated by JS -->
+          </select>
+
+          <label style="display:block; font-size:11px; margin-bottom:4px; font-weight:600;">Default Zipcode</label>
+          <input type="text" id="catalogueZipInput" placeholder="Enter zipcode..." style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 12px; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">
+
+          <label style="display:block; font-size:11px; margin-bottom:4px; font-weight:600;">Default Language</label>
+          <div class="segmented-control" style="width:100%;">
+              <input type="radio" name="catLang" id="catLangEnglish" value="english" checked>
+              <label for="catLangEnglish" style="flex:1; text-align:center;">English</label>
+              
+              <input type="radio" name="catLang" id="catLangNative" value="native">
+              <label for="catLangNative" style="flex:1; text-align:center;">Native</label>
+          </div>
+      </div>
+      <div class="modal-footer">
+          <button id="saveInputBtn" class="auth-btn" style="background:var(--primary); color:#fff; width:auto; display:inline-flex;">Save</button>
+      </div>
+  </dialog>
+
+  <dialog id="saveToCatalogueModal">
+      <div class="modal-header">
+          <span>Import to Catalogue</span>
+          <button id="closeSaveModalBtn" aria-label="Close save modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+          <p style="margin-top:0; font-size:12px; color:var(--text-muted);">Select where to save the imported items:</p>
+
+          <label style="display:flex; align-items:center; gap:8px; margin-bottom:12px; cursor:pointer;">
+              <input type="radio" name="saveOption" value="new" checked>
+              <span style="font-weight:600;">Create New Catalogue</span>
+          </label>
+          
+          <div id="newCatDetails" style="margin-left: 24px; margin-bottom: 16px;">
+              <input type="text" id="newCatalogueNameInput" placeholder="Enter catalogue name..." style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 8px;">
+              
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom: 8px;">
+                  <div>
+                      <label style="font-size:10px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:2px;">Marketplace</label>
+                      <select id="newCatalogueMarketSelect" style="width: 100%; padding: 6px; box-sizing: border-box; font-size:11px;"></select>
+                  </div>
+                  <div>
+                      <label style="font-size:10px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:2px;">Zipcode</label>
+                      <input type="text" id="newCatalogueZipInput" placeholder="Zip..." style="width: 100%; padding: 6px; box-sizing: border-box; font-size:11px;">
+                  </div>
+              </div>
+
+              <div style="margin-bottom: 4px;">
+                  <label style="font-size:10px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:2px;">Language</label>
+                  <div class="segmented-control" style="width:100%;">
+                      <input type="radio" name="newCatLang" id="newCatLangEnglish" value="english" checked>
+                      <label for="newCatLangEnglish" style="flex:1; text-align:center; font-size:10px; padding:4px;">English</label>
+                      
+                      <input type="radio" name="newCatLang" id="newCatLangNative" value="native">
+                      <label for="newCatLangNative" style="flex:1; text-align:center; font-size:10px; padding:4px;">Native</label>
+                  </div>
+              </div>
+          </div>
+
+          <label style="display:flex; align-items:center; gap:8px; margin-bottom:12px; cursor:pointer;">
+              <input type="radio" name="saveOption" value="append">
+              <span style="font-weight:600;">Overwrite Existing</span>
+          </label>
+          <select id="appendCatalogueSelect" style="width: calc(100% - 24px); padding: 8px; margin-left: 24px;" disabled></select>
+      </div>
+      <div class="modal-footer">
+          <button id="confirmImportBtn" class="auth-btn" style="background:var(--success); color:#fff; width:auto; display:inline-flex;">Save & Load</button>
+      </div>
+  </dialog>
+
+  <!-- Manage Catalogs Modal -->
+  <dialog id="manageCatalogsModal">
+      <div class="modal-header">
+          <span>Manage Catalogs</span>
+          <button id="closeManageModalBtn" aria-label="Close manage modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:12px; font-weight:600;">Drag to Reorder</span>
+              <select id="sortCatalogsSelect" style="padding:4px; font-size:11px;">
+                  <option value="custom">Custom Order</option>
+                  <option value="az">Name (A-Z)</option>
+                  <option value="za">Name (Z-A)</option>
+                  <option value="newest">Date Created (Newest)</option>
+                  <option value="oldest">Date Created (Oldest)</option>
+              </select>
+          </div>
+          <div id="manageCatalogsList" style="border:1px solid var(--border); border-radius:6px; max-height:300px; overflow-y:auto; background:var(--bg);">
+              <!-- List items injected by JS -->
+          </div>
+      </div>
+      <div class="modal-footer">
+          <button id="saveOrderBtn" class="auth-btn" style="background:var(--primary); color:#fff; width:auto; display:inline-flex;">Save Order</button>
+      </div>
+  </dialog>
+
+  <dialog id="templateModal">
+      <div class="modal-header">
+          <span>Select Attributes to Track</span>
+          <button id="closeTemplateModalBtn" aria-label="Close template modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+
+      <div class="options-header" style="border-top:none; background: var(--bg);">
+        <span>Configuration</span>
+        <label style="cursor:pointer; display:flex; align-items:center;">
+            <input type="checkbox" id="tplSelectAll" checked style="margin-right:4px;"> Select All
+        </label>
+      </div>
+
+      <div class="modal-body" style="padding: 0;">
+        <div id="tplAttributesGrid" class="attributes-grid" style="max-height: 400px;">
+             <div class="section-label">
+                <span>Executive Summary</span>
+                <span class="lock-icon">🔒</span>
+            </div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature" value="lqs" checked disabled> Listing Quality Score</label></div>
+            <div></div>
+
+            <div class="section-label">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" class="tpl-group-select" data-group="core" checked>
+                    <span>Core Data (Free)</span>
+                </div>
+            </div>
+            <!-- Left: Locked, Right: Unlocked -->
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox tpl-group-core" value="marketplace" checked disabled> Marketplace</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox tpl-group-core" value="brand" checked> Brand Name</label></div>
+            
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox tpl-group-core" value="queryASIN" checked disabled> Query ASIN</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox tpl-group-core" value="metaTitle" checked> Page Title</label></div>
+            
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox tpl-group-core" value="mediaAsin" checked disabled> Page ASIN</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox tpl-group-core" value="displayPrice" checked> Price</label></div>
+            
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox tpl-group-core" value="url" checked disabled> Page URL</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox tpl-group-core" value="rating" checked> Rating (Stars)</label></div>
+            
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox tpl-group-core" value="deliveryLocation" checked disabled> Delivery Location</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox tpl-group-core" value="reviews" checked> Review Count</label></div>
+
+            <div class="section-label">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" class="tpl-group-select" data-group="advanced" checked disabled>
+                    <span>Advanced Data</span>
+                    <span class="lock-icon">🔒</span>
+                </div>
+            </div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-advanced" value="parentAsin" checked disabled> Parent ASIN</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox tpl-group-advanced" value="stockStatus" checked> Stock Status</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-advanced" value="soldBy" checked disabled> Sold By</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-advanced" value="bsr" checked disabled> Best Sellers Rank</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-advanced" value="freeDeliveryDate" checked disabled> Free Delivery</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-advanced" value="paidDeliveryDate" checked disabled> Paid Delivery</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-advanced" value="primeOrFastestDeliveryDate" checked disabled> Prime / Fastest Delivery</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-advanced" value="scrapeAOD" disabled> Offers (AOD)</label></div>
+
+            <div class="section-label">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" class="tpl-group-select" data-group="content" checked disabled>
+                    <span>Content Audit</span>
+                    <span class="lock-icon">🔒</span>
+                </div>
+            </div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="hasBullets" checked disabled> Has Bullet Points?</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="bulletsCount" checked disabled> Bullet Count</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="bullets" checked disabled> Bullet Points</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="hasDescription" checked disabled> Has Description?</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="description" checked disabled> Description</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="variationExists" checked disabled> Has Variations?</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="variationTheme" checked disabled> Variation Theme</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="variationCount" checked disabled> Variation Quantity</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="variationFamily" checked disabled> Variation Child ASINs</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="hasBrandStory" checked disabled> Has Brand Story?</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="brandStoryImgs" checked disabled> Brand Story Links</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="hasAplus" checked disabled> Has A+ Content?</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="aPlusImgs" checked disabled> A+ Content Links</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="aPlusCarouselImgs" checked disabled> Carousel A+ Links</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="hasVideo" checked disabled> Has Video?</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="videoCount" checked disabled> Video Count</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="videos" checked disabled> Videos Links</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="imgVariantCount" checked disabled> Image Link Count</label></div>
+            <div class="checkbox-item"><label><input type="checkbox" class="tpl-attr-checkbox pro-feature tpl-group-content" value="imgVariantDetails" checked disabled> Image Link Details</label></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+          <button id="saveTemplateBtn" class="auth-btn" style="background:var(--primary); color:#fff; width:auto; display:inline-flex;">Save Template</button>
+      </div>
+  </dialog>
+
+  <dialog id="whatsNewModal">
+      <div class="modal-header">
+          <span>What's New</span>
+          <button id="closeWhatsNewBtn" aria-label="Close modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px; font-size: 13px; line-height: 1.5;">
+          <h3 style="margin-top:0; color:var(--primary);">🛡️ Auditor Mode Beta</h3>
+          <p>We've added a powerful new <strong>Auditor Mode</strong> to help you verify listing accuracy.</p>
+          <ul style="padding-left: 20px; color: var(--text-muted);">
+              <li>Compare live Amazon data against your "Golden Record" Catalogue.</li>
+              <li>Audit Images, Videos, Content, Variations, and more.</li>
+              <li>Export detailed discrepancy reports and detailed insights.</li>
+          </ul>
+          <p><strong>To start:</strong> Switch to "Auditor Mode" using the toggle at the top.</p>
+      </div>
+      <div class="modal-footer">
+          <button id="dismissWhatsNewBtn" class="auth-btn" style="background:var(--primary); color:#fff; width:auto; display:inline-flex;">Got it!</button>
+      </div>
+  </dialog>
+
+  <dialog id="loginModal">
+      <div class="modal-header">
+          <span>Sign In</span>
+          <button id="closeLoginModalBtn" aria-label="Close login modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+          <button id="googleLoginBtn" class="auth-btn btn-google" style="justify-content: center; width: 100%;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="16px" height="16px" style="margin-right:8px;"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg> Continue with Google
+          </button>
+          <button id="msLoginBtn" class="auth-btn btn-microsoft" style="justify-content: center; width: 100%;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 23 23" style="margin-right:8px;"><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H12z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg> Continue with Microsoft
+          </button>
+      </div>
+  </dialog>
+
+  <dialog id="helpModal">
+      <div class="modal-header">
+          <span>How to Use</span>
+          <button id="closeHelpBtn" aria-label="Close modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px; font-size: 13px; line-height: 1.5;">
+          <div style="margin-bottom:16px;">
+              <strong style="color:var(--primary);">1. 🔎 Scraper Mode </strong>
+              <p style="margin:4px 0 8px 0; color:var(--text-muted);">Extract detailed data from Amazon listings page.</p>
+              <ul style="padding-left:20px; margin:0; color:var(--text-main);">
+                  <li><strong>Input:</strong> Paste ASINs/URLs or upload a CSV.</li>
+                  <li><strong>Region:</strong> Select Marketplace (e.g. Amazon.com) & Enter Zip Code.</li>
+                  <li><strong>Language:</strong> Choose English or Native.</li>
+                  <li><strong>Select:</strong> Choose attributes (Title, Price, Images, Videos, AOD, etc.).</li>
+                  <li><strong>Run:</strong> Click "Start Bulk Scrapping".</li>
+                  <li><strong>Output:</strong> Download Excel/CSV or push to Google/Microsoft Drive.</li>
+              </ul>
+          </div>
+
+          <div style="margin-bottom:16px;">
+              <strong style="color:var(--purple);">2. 🛡️ Auditor Mode </strong>
+              <p style="margin:4px 0 8px 0; color:var(--text-muted);">Compare live data against your "Golden Record" Catalogue.</p>
+              <ul style="padding-left:20px; margin:0; color:var(--text-main);">
+                  <li><strong>Select:</strong> Choose Audit Points (Content, Image, etc.) to create a Dynamic Catalogue Template.</li>
+                  <li><strong>Setup:</strong> Create a Catalogue manually or Upload the filled Template.</li>
+                  <li><strong>Run:</strong> Click "Audit Catalogue".</li>
+                  <li><strong>Result:</strong> See Pass/Fail discrepancies and detailed insights.</li>
+              </ul>
+          </div>
+
+          <div style="background:var(--bg); padding:10px; border-radius:6px; border:1px solid var(--border); text-align:center;">
+              <div style="font-weight:600; margin-bottom:4px;">Want to try it now?</div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">We'll load some sample ASINs for you to scrape.</div>
+              <button id="loadSampleDataBtn" class="auth-btn" style="background:var(--success); color:#fff; width:100%; justify-content:center;">🚀 Load Sample Data</button>
+          </div>
+      </div>
+  </dialog>
+
+  <script src="xlsx.full.min.js"></script>
+  <script type="module" src="sidepanel.js"></script>
+  
+
+  <!-- Custom Rule Modal -->
+  <dialog id="customRuleModal" style="background:var(--surface-solid); color:var(--text-main); border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow-lg);">
+      <div class="modal-header">
+          <span id="customRuleModalTitle">Add Custom Rule</span>
+          <button id="closeCustomRuleModalBtn" aria-label="Close modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+          <input type="hidden" id="customRuleId">
+          
+          <label style="display:block; font-size:11px; margin-bottom:4px; font-weight:600;">Audit Group (Template)</label>
+          <input type="text" id="customRuleGroup" placeholder="e.g. Compliance Checks" list="auditGroupsList" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 12px; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">
+          <datalist id="auditGroupsList"></datalist>
+          
+          <label style="display:block; font-size:11px; margin-bottom:4px; font-weight:600;">Attribute Name</label>
+          <input type="text" id="customRuleName" placeholder="e.g. Warranty Info" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 12px; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label style="font-size:11px; font-weight:600;">Extraction Selector</label>
+                            <button id="pickElementBtn" style="padding:4px 8px; font-size:10px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer; flex:none; white-space:nowrap;">
+                  🎯 Select Element
+              </button>
+          </div>
+          <p style="font-size:10px; color:var(--text-muted); margin-top:0;">Navigate to an Amazon page, click "Select", then click the element you want. Use <kbd>Up</kbd> / <kbd>Down</kbd> arrows to expand/narrow selection. You can enter multiple fallback selectors (one per line). Use <code>{ASIN}</code> as a dynamic variable.</p>
+          
+          <textarea id="customRuleSelector" placeholder="CSS or XPath Selectors (one per line as fallbacks)" style="width: 100%; height: 60px; padding: 8px; box-sizing: border-box; margin-bottom: 4px; font-family: monospace; font-size: 11px; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;"></textarea>
+          <label style="display:flex; align-items:center; gap:6px; font-size:11px; margin-bottom:12px; cursor:pointer;"><input type="checkbox" id="customRuleMultiple"> Extract Multiple Elements (Lists)</label>
+
+          <div style="display:flex; gap:8px; margin-bottom: 12px;">
+              <div style="flex:1;">
+                  <label style="display:block; font-size:11px; margin-bottom:4px; font-weight:600;">Method</label>
+                  <select id="customRuleMethod" style="width: 100%; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:6px; border-radius:4px;">
+                      <option value="css">CSS Selector</option>
+                      <option value="xpath">XPath</option>
+                  </select>
+              </div>
+              <div style="flex:1;">
+                  <label style="display:block; font-size:11px; margin-bottom:4px; font-weight:600;">Extract</label>
+                                    <input list="customRuleAttributeList" id="customRuleAttribute" placeholder="e.g. text or data-custom" style="width: 100%; padding: 6px; box-sizing: border-box; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px; font-size: 11px;">
+                  <datalist id="customRuleAttributeList">
+                      <option value="text">Text Content</option>
+                      <option value="innerHTML">HTML Content</option>
+                      <option value="src">Image Src (src)</option>
+                      <option value="href">Link (href)</option>
+                  </datalist>
+              </div>
+          </div>
+
+          <div style="display:flex; gap:8px; margin-bottom: 12px;">
+              <div style="flex:1;">
+                  <label style="display:block; font-size:11px; margin-bottom:4px; font-weight:600;">Data Post-Processing</label>
+                  <select id="customRuleProcessing" style="width: 100%; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:6px; border-radius:4px;">
+                      <option value="none">None (Raw Text)</option>
+                      <option value="numbers_only">Numbers Only (Strip Currency/Text)</option>
+                      <option value="remove_line_breaks">Remove Line Breaks</option>
+                      <option value="regex_replace">Custom Regex Replace</option>
+                  </select>
+              </div>
+          </div>
+          
+          <div id="customRuleRegexGroup" style="display:none; gap:8px; margin-bottom: 12px;">
+              <div style="flex:1;">
+                  <input type="text" id="customRuleRegexPattern" placeholder="Regex Pattern (e.g. [A-Z]+)" style="width: 100%; padding: 6px; box-sizing: border-box; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px; font-size: 11px;">
+              </div>
+              <div style="flex:1;">
+                  <input type="text" id="customRuleRegexReplace" placeholder="Replacement Text" style="width: 100%; padding: 6px; box-sizing: border-box; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px; font-size: 11px;">
+              </div>
+          </div>
+          
+          <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:12px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                  <button id="testCustomRuleBtn" class="secondary-btn" style="padding:4px 8px; font-size:10px; border-radius:4px; cursor:pointer; flex:none;">
+                      ▶ Test Rule on Active Tab
+                  </button>
+                  <div id="customRuleTestNav" style="display:none; align-items:center; gap:4px; flex:none; font-size:10px;">
+                      <button id="customRuleTestPrev" style="padding:2px 6px; font-size:10px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-main); border-radius:4px; cursor:pointer;">▲</button>
+                      <span id="customRuleTestCount" style="color:var(--text-main);">1/1</span>
+                      <button id="customRuleTestNext" style="padding:2px 6px; font-size:10px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-main); border-radius:4px; cursor:pointer;">▼</button>
+                  </div>
+              </div>
+              <div id="customRuleTestResult" style="font-size:10px; color:var(--text-muted); font-family:monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; padding:4px; box-sizing:border-box; background:var(--bg-input); border:1px solid var(--border); border-radius:4px;">No test run yet.</div>
+          </div>
+
+          <hr style="border: 0; border-top: 1px dashed var(--border); margin: 16px 0;">
+
+          <label style="display:block; font-size:11px; margin-bottom:4px; font-weight:600;">Audit Operator (For Auditor Mode)</label>
+          <select id="customRuleAuditOperator" style="width: 100%; margin-bottom: 12px; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:6px; border-radius:4px;">
+              <option value="contains">Contains (Default)</option>
+              <option value="exact">Exact Match</option>
+              <option value="exists">Exists on Page</option>
+              <option value="regex">Regex Match</option>
+              <option value="numeric_delta">Numeric Delta</option>
+          </select>
+          
+          <label style="display:block; font-size:11px; margin-bottom:4px; font-weight:600;">CSV Column Name to Compare Against (Optional)</label>
+          <input type="text" id="customRuleAuditColumn" placeholder="e.g. Expected Warranty (Defaults to Attribute Name)" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 12px; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">
+          
+          <label style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; cursor:pointer;">
+              <input type="checkbox" id="customRuleIsActive" checked>
+              Rule is Active
+          </label>
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content:space-between;">
+          <button id="deleteCustomRuleBtn" class="auth-btn" style="background:var(--danger); color:#fff; width:auto; display:none;">Delete</button>
+          <button id="saveCustomRuleBtn" class="auth-btn" style="background:var(--success); color:#fff; width:auto; margin-left:auto;">Save Rule</button>
+      </div>
+  </dialog>
+
+</body>
+</html>
