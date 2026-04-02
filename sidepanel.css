@@ -1228,6 +1228,33 @@ dialog::backdrop {
 	text-decoration: underline;
 }
 
+/* Diff Viewer Styles */
+ins.diff-ins {
+    background-color: #d1ffd6;
+    color: #0b6623;
+    text-decoration: none;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+del.diff-del {
+    background-color: #ffe6e6;
+    color: #cc0000;
+    text-decoration: line-through;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+body[data-theme="dark"] ins.diff-ins {
+    background-color: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+body[data-theme="dark"] del.diff-del {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+}
+
 .sep {
 	color: var(--text-muted);
 	opacity: 0.4;

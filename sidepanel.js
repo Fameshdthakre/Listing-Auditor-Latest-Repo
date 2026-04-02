@@ -1,4 +1,46 @@
   import { MS_CLIENT_ID, MS_AUTH_URL, MS_SCOPES } from './config.js';
+
+  // --- Feature: Word Diff Utility ---
+  const escapeHtml = (unsafe) => {
+      return (unsafe || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  };
+
+  const generateWordDiffHtml = (expectedStr, actualStr) => {
+      const eWords = (expectedStr || "").split(/\s+/).filter(Boolean);
+      const aWords = (actualStr || "").split(/\s+/).filter(Boolean);
+
+      // Basic LCS based diff (Simple O(N*M) implementation for words)
+      const lcsMatrix = Array(eWords.length + 1).fill(null).map(() => Array(aWords.length + 1).fill(0));
+      for (let i = 1; i <= eWords.length; i++) {
+          for (let j = 1; j <= aWords.length; j++) {
+              if (eWords[i - 1] === aWords[j - 1]) {
+                  lcsMatrix[i][j] = lcsMatrix[i - 1][j - 1] + 1;
+              } else {
+                  lcsMatrix[i][j] = Math.max(lcsMatrix[i - 1][j], lcsMatrix[i][j - 1]);
+              }
+          }
+      }
+
+      let i = eWords.length;
+      let j = aWords.length;
+      const diffResult = [];
+
+      while (i > 0 || j > 0) {
+          if (i > 0 && j > 0 && eWords[i - 1] === aWords[j - 1]) {
+              diffResult.push(`<span>${escapeHtml(eWords[i - 1])}</span>`);
+              i--;
+              j--;
+          } else if (j > 0 && (i === 0 || lcsMatrix[i][j - 1] >= lcsMatrix[i - 1][j])) {
+              diffResult.push(`<ins class="diff-ins">${escapeHtml(aWords[j - 1])}</ins>`);
+              j--;
+          } else if (i > 0 && (j === 0 || lcsMatrix[i][j - 1] < lcsMatrix[i - 1][j])) {
+              diffResult.push(`<del class="diff-del">${escapeHtml(eWords[i - 1])}</del>`);
+              i--;
+          }
+      }
+
+      return diffResult.reverse().join(' ');
+  };
   import {
       marketplaceData, ZIP_DEFAULTS, getVendorCentralDomain, buildOrNormalizeUrl,
       csvLineParser, parseAuditType2Csv, cleanAmazonUrl, cleanField,
@@ -445,67 +487,142 @@ document.addEventListener('DOMContentLoaded', () => {
       // Clear previous content
       modalBody.textContent = ''; 
 
-      const table = document.createElement('table');
-      table.className = 'preview-table';
+      if (MEGA_MODE === 'auditor') {
+          // Auditor Mode Detailed Diff View
+          results.forEach(r => {
+              if (r.error || !r.attributes) return;
 
-      // Create Header
-      const thead = document.createElement('thead');
-      const headerRow = document.createElement('tr');
-      ['ASIN', 'Status', 'Title', 'LQS', 'Issues'].forEach(text => {
-          const th = document.createElement('th');
-          th.textContent = text;
-          headerRow.appendChild(th);
-      });
-      thead.appendChild(headerRow);
-      table.appendChild(thead);
+              const card = document.createElement('div');
+              card.className = 'diff-card';
+              card.style.border = '1px solid var(--border)';
+              card.style.marginBottom = '12px';
+              card.style.borderRadius = '6px';
+              card.style.padding = '12px';
 
-      const tbody = document.createElement('tbody');
-      results.forEach(r => {
-          let status = "OK";
-          let statusClass = "status-good";
-          let issues = "";
-          
-          if (r.error) { status = "ERR"; statusClass = "status-bad"; issues = r.error; }
-          else if (r.queryASIN && r.attributes && r.attributes.mediaAsin && r.queryASIN !== r.attributes.mediaAsin) { status = "Redirect"; statusClass = "status-bad"; }
-          
-          if (!issues && r.attributes && r.attributes.lqsDetails) {
-              const fails = r.attributes.lqsDetails.filter(d => !d.pass);
-              if (fails.length > 0) issues = fails.length + " LQS Issues";
+              const header = document.createElement('div');
+              header.style.fontWeight = 'bold';
+              header.style.marginBottom = '8px';
+              header.textContent = `ASIN: ${r.attributes.mediaAsin || r.queryASIN}`;
+              card.appendChild(header);
+
+              const addDiffSection = (label, expected, actual) => {
+                  if (!expected) return; // Only show if expected was provided
+                  const section = document.createElement('div');
+                  section.style.marginBottom = '8px';
+                  section.style.fontSize = '11px';
+
+                  const labelDiv = document.createElement('div');
+                  labelDiv.style.fontWeight = 'bold';
+                  labelDiv.style.color = 'var(--text-muted)';
+                  labelDiv.textContent = label;
+                  section.appendChild(labelDiv);
+
+                  const contentDiv = document.createElement('div');
+                  contentDiv.style.background = 'var(--bg-input)';
+                  contentDiv.style.padding = '8px';
+                  contentDiv.style.borderRadius = '4px';
+                  contentDiv.style.marginTop = '4px';
+                  contentDiv.style.fontFamily = 'monospace';
+                  contentDiv.style.whiteSpace = 'pre-wrap';
+                  contentDiv.style.wordBreak = 'break-word';
+
+                  // Generate Diff
+                  contentDiv.innerHTML = generateWordDiffHtml(String(expected), String(actual || ""));
+                  section.appendChild(contentDiv);
+                  card.appendChild(section);
+              };
+
+              // Map properties safely from the item
+              const normalizeDiffInput = (input) => {
+                  if (Array.isArray(input)) return input.join(' ');
+                  return String(input || "");
+              };
+
+              const expTitle = r.expected?.title || r.comparisonData?.expected_title;
+              const actTitle = r.attributes.metaTitle;
+              addDiffSection("Title", normalizeDiffInput(expTitle), normalizeDiffInput(actTitle));
+
+              const expBullets = r.expected?.bullets || r.comparisonData?.expected_bullets;
+              const actBullets = r.attributes.bullets;
+              addDiffSection("Bullets", normalizeDiffInput(expBullets), normalizeDiffInput(actBullets));
+
+              const expDesc = r.expected?.description || r.comparisonData?.expected_description;
+              const actDesc = r.attributes.description;
+              addDiffSection("Description", normalizeDiffInput(expDesc), normalizeDiffInput(actDesc));
+
+              if (card.childNodes.length > 1) {
+                  modalBody.appendChild(card);
+              }
+          });
+
+          if (modalBody.childNodes.length === 0) {
+              modalBody.textContent = 'No text mismatches to preview or missing expected data.';
           }
 
-          const tr = document.createElement('tr');
+      } else {
+          // Standard Scraper View
+          const table = document.createElement('table');
+          table.className = 'preview-table';
 
-          // ASIN
-          const tdAsin = document.createElement('td');
-          tdAsin.textContent = r.attributes ? r.attributes.mediaAsin : 'N/A';
-          tr.appendChild(tdAsin);
+          // Create Header
+          const thead = document.createElement('thead');
+          const headerRow = document.createElement('tr');
+          ['ASIN', 'Status', 'Title', 'LQS', 'Issues'].forEach(text => {
+              const th = document.createElement('th');
+              th.textContent = text;
+              headerRow.appendChild(th);
+          });
+          thead.appendChild(headerRow);
+          table.appendChild(thead);
 
-          // Status
-          const tdStatus = document.createElement('td');
-          tdStatus.textContent = status;
-          tdStatus.className = statusClass;
-          tr.appendChild(tdStatus);
+          const tbody = document.createElement('tbody');
+          results.forEach(r => {
+              let status = "OK";
+              let statusClass = "status-good";
+              let issues = "";
 
-          // Title
-          const tdTitle = document.createElement('td');
-          const metaTitle = (r.attributes && r.attributes.metaTitle) ? r.attributes.metaTitle : 'N/A';
-          tdTitle.textContent = metaTitle.length > 30 ? metaTitle.substring(0, 30) + '...' : metaTitle;
-          tr.appendChild(tdTitle);
+              if (r.error) { status = "ERR"; statusClass = "status-bad"; issues = r.error; }
+              else if (r.queryASIN && r.attributes && r.attributes.mediaAsin && r.queryASIN !== r.attributes.mediaAsin) { status = "Redirect"; statusClass = "status-bad"; }
 
-          // LQS
-          const tdLqs = document.createElement('td');
-          tdLqs.textContent = r.attributes ? r.attributes.lqs : '-';
-          tr.appendChild(tdLqs);
+              if (!issues && r.attributes && r.attributes.lqsDetails) {
+                  const fails = r.attributes.lqsDetails.filter(d => !d.pass);
+                  if (fails.length > 0) issues = fails.length + " LQS Issues";
+              }
 
-          // Issues
-          const tdIssues = document.createElement('td');
-          tdIssues.textContent = issues;
-          tr.appendChild(tdIssues);
+              const tr = document.createElement('tr');
 
-          tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      modalBody.appendChild(table);
+              // ASIN
+              const tdAsin = document.createElement('td');
+              tdAsin.textContent = r.attributes ? r.attributes.mediaAsin : 'N/A';
+              tr.appendChild(tdAsin);
+
+              // Status
+              const tdStatus = document.createElement('td');
+              tdStatus.textContent = status;
+              tdStatus.className = statusClass;
+              tr.appendChild(tdStatus);
+
+              // Title
+              const tdTitle = document.createElement('td');
+              const metaTitle = (r.attributes && r.attributes.metaTitle) ? r.attributes.metaTitle : 'N/A';
+              tdTitle.textContent = metaTitle.length > 30 ? metaTitle.substring(0, 30) + '...' : metaTitle;
+              tr.appendChild(tdTitle);
+
+              // LQS
+              const tdLqs = document.createElement('td');
+              tdLqs.textContent = r.attributes ? r.attributes.lqs : '-';
+              tr.appendChild(tdLqs);
+
+              // Issues
+              const tdIssues = document.createElement('td');
+              tdIssues.textContent = issues;
+              tr.appendChild(tdIssues);
+
+              tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
+          modalBody.appendChild(table);
+      }
       previewModal.showModal();
   });
 
