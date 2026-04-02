@@ -213,6 +213,16 @@
             </div>
         </div>
 
+        <div style="margin-bottom: 12px;">
+            <div style="font-size:11px; font-weight:600; margin-bottom:4px;">Local Target Images (Golden Record)</div>
+            <div id="imageDragDropArea" style="border:1px dashed var(--primary); padding:16px; text-align:center; border-radius:6px; cursor:pointer; background:rgba(37,99,235,0.05); color:var(--text-muted); font-size:11px;">
+                Drag & Drop Images Here or Click to Upload
+                <input type="file" id="localImagesInput" accept="image/png, image/jpeg, image/webp" multiple style="display:none;">
+            </div>
+            <div id="localImagesPreview" style="display:flex; gap:4px; margin-top:8px; overflow-x:auto;"></div>
+            <div id="localImagesStatus" style="font-size:9px; color:var(--text-muted); margin-top:4px;"></div>
+        </div>
+
         <button id="auditCatalogueBtn" style="width: 100%; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px;">
              🛡️ AUDIT CATALOGUE
         </button>
@@ -418,6 +428,7 @@
                 <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditVariation" checked> Variation Family Audit</label><span class="info-icon" data-tooltip="Audits the Variation Family. Checks variation count, theme, and ensures all expected child ASINs are present and accounted for.">ⓘ</span></div>
                 <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditBuyBox" checked> BuyBox (Price, Ships, Sold)</label><span class="info-icon" data-tooltip="Monitors BuyBox status. Verifies if Price matches expectations and checks 'Sold By' / 'Ships From' seller information.">ⓘ</span></div>
                 <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditDelivery" checked> Delivery Promise Audit</label><span class="info-icon" data-tooltip="Checks delivery promises. Verifies if the product meets max delivery days (e.g. <2 days) or has Prime/Free delivery status.">ⓘ</span></div>
+                <div class="checkbox-item"><label><input type="checkbox" class="audit-checkbox attr-checkbox group-audit" value="auditVisuals" checked> AI Visual Audit</label><span class="info-icon" data-tooltip="Uses Multimodal AI to compare Golden Record images against Live PDP and Vendor Central images.">ⓘ</span></div>
             </div>
         </div>
       </div>
