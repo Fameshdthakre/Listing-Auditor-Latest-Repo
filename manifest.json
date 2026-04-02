@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_appName__",
   "default_locale": "en",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "__MSG_appDesc__",
   "permissions": [
     "tabs",
@@ -55,7 +55,7 @@
     "type": "module"
   },
   "oauth2": {
-    "client_id": "789113929254-qqc9u8olmvj10i9g9lpqnjm24f2s248n.apps.googleusercontent.com",
+    "client_id": "789113929254-tpqjd4tgmt2dbb9bp8np5lfi0aatf4g5.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile",

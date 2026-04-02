@@ -991,14 +991,44 @@ document.addEventListener('DOMContentLoaded', () => {
               container[currentCatalogueId].items = processImportItems(items);
               await chrome.storage.local.set({ [key]: container });
               loadCatalogue();
-              alert(`Synced ${items.length} rows from Google Sheets.`);
-          } else {
-              alert("Google Sheet is empty or missing headers.");
+              // Create a temporary status message instead of alert
+              const statusDiv = document.getElementById('sheetsSyncStatus');
+              if (statusDiv) {
+                  const oldStatus = statusDiv.textContent;
+                  const oldColor = statusDiv.style.color;
+                  statusDiv.textContent = `Synced ${items.length} rows!`;
+                  statusDiv.style.color = "var(--success)";
+                  setTimeout(() => {
+                      statusDiv.textContent = oldStatus;
+                      statusDiv.style.color = oldColor;
+                  }, 3000);
+              }
           }
 
       } catch (err) {
           console.error(err);
-          alert("Sync Failed: " + err.message);
+
+          // Clear link and show error in UI
+          const key = getCatalogueContainerKey();
+          chrome.storage.local.get([key], (data) => {
+              const container = data[key];
+              if (container && container[currentCatalogueId]) {
+                  container[currentCatalogueId].linkedSheetId = null;
+                  chrome.storage.local.set({ [key]: container }, () => {
+                      updateSheetsSyncUI(container[currentCatalogueId]);
+
+                      // Now show error since UI is in unlinked state
+                      if (sheetConnectError) {
+                          if (err.message.includes("EMPTY_SHEET")) {
+                              sheetConnectError.textContent = "The linked Google Sheet is completely empty. Please add your column headers (e.g., 'ASIN') to Row 1 and try again.";
+                          } else {
+                              sheetConnectError.textContent = `Sync failed: ${err.message}`;
+                          }
+                          sheetConnectError.style.display = 'block';
+                      }
+                  });
+              }
+          });
       } finally {
           forceSyncBtn.textContent = originalText;
           forceSyncBtn.disabled = false;

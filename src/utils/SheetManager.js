@@ -78,7 +78,7 @@ export class SheetManager {
             const data = await dataRes.json();
 
             if (!data.values || data.values.length === 0) {
-                return []; // Empty sheet
+                throw new Error("EMPTY_SHEET");
             }
 
             const headers = data.values[0];
