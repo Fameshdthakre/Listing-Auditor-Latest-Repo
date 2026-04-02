@@ -1,23 +1,144 @@
 /**
  * SheetManager.js
  *
- * Handles interaction with the Google Sheets REST API.
+ * Handles interaction with the Google Sheets REST API and Microsoft Graph API.
  * Uses Chrome Identity API to obtain OAuth tokens.
  */
+import { MS_CLIENT_ID, MS_AUTH_URL, MS_SCOPES } from '../../config.js';
 
 export class SheetManager {
-    constructor() {
-        this.baseUrl = 'https://sheets.googleapis.com/v4/spreadsheets';
+    constructor(provider = 'google') {
+        this.provider = provider;
+        this.googleBaseUrl = 'https://sheets.googleapis.com/v4/spreadsheets';
+        this.msBaseUrl = 'https://graph.microsoft.com/v1.0/me/drive/items';
     }
 
     /**
-     * Gets an OAuth token silently.
+     * Update the active provider dynamically
+     * @param {'google' | 'microsoft'} provider
+     */
+    setProvider(provider) {
+        this.provider = provider;
+    }
+
+    /**
+     * Set active user session and store it
+     */
+    async saveSession(sessionData) {
+        return new Promise((resolve) => {
+            chrome.storage.local.set({ userSession: sessionData }, resolve);
+        });
+    }
+
+    /**
+     * Get active user session
+     */
+    async getSession() {
+        return new Promise((resolve) => {
+            chrome.storage.local.get(['userSession'], (data) => resolve(data.userSession || null));
+        });
+    }
+
+    /**
+     * Initiates Google OAuth Login
+     */
+    async loginWithGoogle(interactive = true) {
+        return new Promise((resolve, reject) => {
+            chrome.identity.getAuthToken({ interactive }, async (token) => {
+                if (chrome.runtime.lastError || !token) {
+                    reject(new Error(chrome.runtime.lastError?.message || "Failed to get Google token"));
+                    return;
+                }
+
+                try {
+                    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    const user = await res.json();
+
+                    const session = {
+                        provider: 'google',
+                        name: user.given_name || 'User',
+                        email: user.email,
+                        token: token
+                    };
+                    await this.saveSession(session);
+                    this.setProvider('google');
+                    resolve(session);
+                } catch(e) {
+                    reject(e);
+                }
+            });
+        });
+    }
+
+    /**
+     * Initiates Microsoft OAuth Login
+     */
+    async loginWithMicrosoft(interactive = true) {
+        return new Promise((resolve, reject) => {
+            const redirectUri = chrome.identity.getRedirectURL();
+            const scope = `${MS_SCOPES} Files.ReadWrite`;
+            const nonce = Math.random().toString(36).substring(2, 15);
+            const authUrl = `${MS_AUTH_URL}?client_id=${MS_CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&nonce=${nonce}`;
+
+            chrome.identity.launchWebAuthFlow({
+                url: authUrl,
+                interactive: interactive
+            }, async (responseUrl) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
+                if (!responseUrl) {
+                    reject(new Error("No response URL from Microsoft Auth"));
+                    return;
+                }
+
+                try {
+                    const url = new URL(responseUrl);
+                    const urlParams = new URLSearchParams(url.hash.substring(1));
+                    const token = urlParams.get("access_token");
+
+                    if (!token) throw new Error("No access token in response");
+
+                    const res = await fetch('https://graph.microsoft.com/v1.0/me', {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    const user = await res.json();
+
+                    const session = {
+                        provider: 'microsoft',
+                        name: user.givenName || 'User',
+                        email: user.mail || user.userPrincipalName,
+                        token: token
+                    };
+                    await this.saveSession(session);
+                    this.setProvider('microsoft');
+                    resolve(session);
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        });
+    }
+
+    /**
+     * Gets an OAuth token based on current provider.
      */
     async getToken() {
+        const session = await this.getSession();
+        if (session && session.token) {
+             // For Microsoft, we might need a refresh logic if it expires,
+             // but for simplicity we'll just return the stored token if it exists.
+             // If this was purely Google, chrome.identity handles caching.
+             if (this.provider === 'microsoft' || session.provider === 'microsoft') return session.token;
+        }
+
+        // Fallback or explicit Google
         return new Promise((resolve, reject) => {
             chrome.identity.getAuthToken({ interactive: false }, (token) => {
                 if (chrome.runtime.lastError || !token) {
-                    // Try interactive if silent fails
                     chrome.identity.getAuthToken({ interactive: true }, (interactiveToken) => {
                         if (chrome.runtime.lastError || !interactiveToken) {
                             reject(new Error(chrome.runtime.lastError?.message || "Failed to get token"));
@@ -33,14 +154,26 @@ export class SheetManager {
     }
 
     /**
-     * Extracts the Spreadsheet ID from a full Google Sheets URL or returns the ID if already clean.
+     * Extracts the Spreadsheet ID from a full Google Sheets URL or Microsoft Graph ID.
      * @param {string} input - The URL or ID string.
-     * @returns {string} The 44-character Spreadsheet ID.
+     * @returns {string} The ID.
      */
     extractSpreadsheetId(input) {
         if (!input) return "";
-        const match = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
-        return match ? match[1] : input.trim();
+
+        // Google Sheets Match
+        const googleMatch = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        if (googleMatch) return googleMatch[1];
+
+        // Microsoft OneDrive/SharePoint URL Match
+        // We usually need an Item ID for Graph API. Direct URLs are tricky to parse into Graph IDs without an API call.
+        // If the user pastes a raw ID (length 32+ alphanumeric), return it.
+        // Otherwise, if they pasted a link, try to parse. Often SharePoint links have `sourcedoc={ID}`.
+        const msMatch = input.match(/sourcedoc=\{?([a-zA-Z0-9-]+)\}?/i);
+        if (msMatch) return msMatch[1];
+
+        // Fallback: Assume the input is a raw ID (either Google 44-char or MS Base64-ish/Guid)
+        return input.trim();
     }
 
     /**
@@ -49,6 +182,13 @@ export class SheetManager {
      * @returns {Promise<Array<Object>>} Array of row objects mapped to headers
      */
     async fetchRows(inputId) {
+        if (this.provider === 'microsoft') {
+            return this.fetchRowsMicrosoft(inputId);
+        }
+        return this.fetchRowsGoogle(inputId);
+    }
+
+    async fetchRowsGoogle(inputId) {
         try {
             const spreadsheetId = this.extractSpreadsheetId(inputId);
             if (!spreadsheetId) throw new Error("Invalid Spreadsheet ID or URL provided.");
@@ -56,7 +196,7 @@ export class SheetManager {
             const token = await this.getToken();
 
             // First, get the sheet name to ensure we query the right range
-            const metaRes = await fetch(`${this.baseUrl}/${spreadsheetId}`, {
+            const metaRes = await fetch(`${this.googleBaseUrl}/${spreadsheetId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -70,7 +210,7 @@ export class SheetManager {
             const sheetName = metaData.sheets[0].properties.title;
 
             // Fetch the actual data
-            const dataRes = await fetch(`${this.baseUrl}/${spreadsheetId}/values/'${sheetName}'`, {
+            const dataRes = await fetch(`${this.googleBaseUrl}/${spreadsheetId}/values/'${sheetName}'`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -98,7 +238,67 @@ export class SheetManager {
             return { sheetName, headers, rows };
 
         } catch (error) {
-            console.error("SheetManager.fetchRows Error:", error);
+            console.error("SheetManager.fetchRowsGoogle Error:", error);
+            throw error;
+        }
+    }
+
+    async fetchRowsMicrosoft(inputId) {
+        try {
+            const fileId = this.extractSpreadsheetId(inputId);
+            if (!fileId) throw new Error("Invalid Microsoft Item ID or URL.");
+
+            const token = await this.getToken();
+
+            // Hit Microsoft Graph API
+            // Assumption: Usually we target "Sheet1". If dynamic name is needed, we could fetch worksheets first.
+            // Let's get the first worksheet ID/name safely.
+            const metaRes = await fetch(`${this.msBaseUrl}/${fileId}/workbook/worksheets`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!metaRes.ok) throw new Error(`Microsoft Graph HTTP error ${metaRes.status}`);
+            const metaData = await metaRes.json();
+
+            if (!metaData.value || metaData.value.length === 0) {
+                throw new Error("No worksheets found in document.");
+            }
+            const sheetName = metaData.value[0].name;
+
+            // Fetch usedRange
+            const dataRes = await fetch(`${this.msBaseUrl}/${fileId}/workbook/worksheets('${sheetName}')/usedRange`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!dataRes.ok) throw new Error(`Microsoft Graph Data HTTP error ${dataRes.status}`);
+            const data = await dataRes.json();
+
+            if (!data.values || data.values.length === 0 || (data.values.length === 1 && data.values[0].length === 0)) {
+                throw new Error("EMPTY_SHEET");
+            }
+
+            const headers = data.values[0];
+            const rows = [];
+
+            for (let i = 1; i < data.values.length; i++) {
+                const rowArray = data.values[i];
+                const rowObj = {};
+                headers.forEach((header, index) => {
+                    rowObj[header] = rowArray[index] !== undefined ? rowArray[index] : "";
+                });
+                // Attach the original row index (1-based + 1 for header)
+                // Wait, Graph API rows might not directly map to global row index if usedRange is offset.
+                // Let's assume usedRange starts at A1 for typical cases.
+                // data.rowIndex provides the starting index (0-based) of the usedRange.
+                const startRow = data.rowIndex || 0;
+                rowObj._sheetRowIndex = startRow + i + 1; // 1-based exact row number
+                rows.push(rowObj);
+            }
+
+            return { sheetName, headers, rows };
+
+        } catch (error) {
+            console.error("SheetManager.fetchRowsMicrosoft Error:", error);
             throw error;
         }
     }
@@ -111,7 +311,13 @@ export class SheetManager {
      */
     async batchUpdateRows(inputId, updates) {
         if (!updates || updates.length === 0) return;
+        if (this.provider === 'microsoft') {
+            return this.batchUpdateRowsMicrosoft(inputId, updates);
+        }
+        return this.batchUpdateRowsGoogle(inputId, updates);
+    }
 
+    async batchUpdateRowsGoogle(inputId, updates) {
         try {
             const spreadsheetId = this.extractSpreadsheetId(inputId);
             if (!spreadsheetId) throw new Error("Invalid Spreadsheet ID or URL provided.");
@@ -123,7 +329,7 @@ export class SheetManager {
                 data: updates
             };
 
-            const res = await fetch(`${this.baseUrl}/${spreadsheetId}/values:batchUpdate`, {
+            const res = await fetch(`${this.googleBaseUrl}/${spreadsheetId}/values:batchUpdate`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -134,13 +340,68 @@ export class SheetManager {
 
             if (!res.ok) {
                 const errData = await res.json();
-                throw new Error(`Batch update failed: ${errData.error?.message || res.status}`);
+                throw new Error(`Google batch update failed: ${errData.error?.message || res.status}`);
             }
 
             return await res.json();
 
         } catch (error) {
-            console.error("SheetManager.batchUpdateRows Error:", error);
+            console.error("SheetManager.batchUpdateRowsGoogle Error:", error);
+            throw error;
+        }
+    }
+
+    async batchUpdateRowsMicrosoft(inputId, updates) {
+        try {
+            const fileId = this.extractSpreadsheetId(inputId);
+            if (!fileId) throw new Error("Invalid Microsoft Item ID or URL.");
+
+            const token = await this.getToken();
+            const results = [];
+
+            // Graph API doesn't have a single "batchUpdate" that takes multiple ranges cleanly like Google
+            // We have to iterate over the updates and PATCH each range.
+            // (Alternatively, use Graph API $batch endpoint for efficiency, but sequential PATCH is simpler)
+            for (const update of updates) {
+                // Parse range string (e.g., "'Sheet1'!Z5")
+                let sheetPart = '';
+                let cellRange = update.range;
+
+                if (update.range.includes('!')) {
+                    const parts = update.range.split('!');
+                    sheetPart = parts[0].replace(/'/g, ''); // Remove single quotes
+                    cellRange = parts[1];
+                }
+
+                // URL encode sheet name if exists
+                const worksheetEndpoint = sheetPart ? `worksheets('${encodeURIComponent(sheetPart)}')/` : '';
+
+                const url = `${this.msBaseUrl}/${fileId}/workbook/${worksheetEndpoint}range(address='${cellRange}')`;
+
+                const res = await fetch(url, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        values: update.values
+                    })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(`Microsoft update failed for range ${update.range}: ${errData.error?.message || res.status}`);
+                }
+
+                const result = await res.json();
+                results.push(result);
+            }
+
+            return results;
+
+        } catch (error) {
+            console.error("SheetManager.batchUpdateRowsMicrosoft Error:", error);
             throw error;
         }
     }

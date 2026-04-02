@@ -171,24 +171,47 @@
              <div style="display:flex; justify-content:space-between; align-items:center;">
                  <label style="font-size:12px; font-weight:700; display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--text-main);">
                      <input type="checkbox" id="syncToSheetsToggle" style="width:16px; height:16px;">
-                     Sync to Google Sheets
+                     <span id="syncTitleText">Sync to Cloud</span>
                  </label>
                  <span id="sheetsSyncBadge" style="font-size:10px; font-weight:600; padding:2px 6px; border-radius:4px; display:none;"></span>
              </div>
 
-             <div id="sheetsUnlinkedState" style="display:none; flex-direction:column; gap:4px; margin-top:4px;">
-                 <div style="display:flex; gap:6px;">
-                     <input type="text" id="sheetUrlInput" placeholder="Paste Google Sheet URL or ID" style="flex:1; padding:6px; font-size:11px; border:1px solid var(--border); border-radius:4px; background:var(--bg-input); color:var(--text-main);">
-                     <button id="connectSheetBtn" class="auth-btn" style="background:var(--primary); color:#fff; padding:6px 12px;">Connect</button>
+             <!-- State 0: Logged Out -->
+             <div id="syncStateLoggedOut" style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+                 <div style="font-size:11px; color:var(--text-muted); text-align:center;">Login to enable automatic cloud sync</div>
+                 <div style="display:flex; gap:8px;">
+                     <button id="syncLoginGoogleBtn" class="auth-btn btn-google hover-btn" style="flex:1; justify-content:center; padding:6px;">
+                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="14px" height="14px" style="margin-right:4px;"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg> Google
+                     </button>
+                     <button id="syncLoginMicrosoftBtn" class="auth-btn btn-microsoft hover-btn" style="flex:1; justify-content:center; padding:6px;">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 23 23" style="margin-right:4px;"><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H12z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg> Microsoft
+                     </button>
                  </div>
-                 <div id="sheetConnectError" style="color:var(--danger); font-size:10px; display:none; margin-top:2px;"></div>
              </div>
 
-             <div id="sheetsLinkedState" style="display:none; justify-content:space-between; align-items:center; margin-top:4px; padding-top:8px; border-top:1px dashed var(--border);">
-                 <div style="font-size:11px; color:var(--text-muted); font-family:monospace;" id="linkedSheetIdDisplay"></div>
-                 <div style="display:flex; gap:6px;">
-                     <button id="forceSyncBtn" class="auth-btn hover-btn" style="background:rgba(34, 197, 94, 0.1); color:var(--success); border-color:rgba(34, 197, 94, 0.3); padding:4px 8px;">🔄 Sync Now</button>
-                     <button id="unlinkSheetBtn" class="auth-btn hover-btn-danger" style="background:transparent; color:var(--danger); border:1px solid var(--danger); padding:4px 8px;">Disconnect / Edit URL</button>
+             <!-- State 1 & 2: Logged In (Common Wrapper) -->
+             <div id="syncStateLoggedIn" style="display:none; flex-direction:column; gap:4px; margin-top:4px;">
+                 <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--text-muted); margin-bottom:4px;">
+                     <span id="syncUserEmailDisplay"></span>
+                     <button id="syncLogoutBtn" style="background:none; border:none; color:var(--danger); text-decoration:underline; cursor:pointer; font-size:10px; padding:0;">Sign Out</button>
+                 </div>
+
+                 <!-- Unlinked Sub-state -->
+                 <div id="sheetsUnlinkedState" style="display:flex; flex-direction:column; gap:4px;">
+                     <div style="display:flex; gap:6px;">
+                         <input type="text" id="sheetUrlInput" placeholder="Link URL" style="flex:1; padding:6px; font-size:11px; border:1px solid var(--border); border-radius:4px; background:var(--bg-input); color:var(--text-main);">
+                         <button id="connectSheetBtn" class="auth-btn hover-btn" style="background:var(--primary); color:#fff; padding:6px 12px;">Connect</button>
+                     </div>
+                     <div id="sheetConnectError" style="color:var(--danger); font-size:10px; display:none; margin-top:2px;"></div>
+                 </div>
+
+                 <!-- Linked Sub-state -->
+                 <div id="sheetsLinkedState" style="display:none; justify-content:space-between; align-items:center; margin-top:4px; padding-top:8px; border-top:1px dashed var(--border);">
+                     <div style="font-size:11px; color:var(--text-muted); font-family:monospace;" id="linkedSheetIdDisplay"></div>
+                     <div style="display:flex; gap:6px;">
+                         <button id="forceSyncBtn" class="auth-btn hover-btn" style="background:rgba(34, 197, 94, 0.1); color:var(--success); border-color:rgba(34, 197, 94, 0.3); padding:4px 8px;">🔄 Sync Now</button>
+                         <button id="unlinkSheetBtn" class="auth-btn hover-btn-danger" style="background:transparent; color:var(--danger); border:1px solid var(--danger); padding:4px 8px;">Disconnect</button>
+                     </div>
                  </div>
              </div>
         </div>

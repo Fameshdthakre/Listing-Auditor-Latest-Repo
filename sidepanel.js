@@ -351,7 +351,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Sheets Sync UI Elements
   const syncToSheetsToggle = document.getElementById('syncToSheetsToggle');
+  const syncTitleText = document.getElementById('syncTitleText');
   const sheetsSyncBadge = document.getElementById('sheetsSyncBadge');
+
+  const syncStateLoggedOut = document.getElementById('syncStateLoggedOut');
+  const syncLoginGoogleBtn = document.getElementById('syncLoginGoogleBtn');
+  const syncLoginMicrosoftBtn = document.getElementById('syncLoginMicrosoftBtn');
+
+  const syncStateLoggedIn = document.getElementById('syncStateLoggedIn');
+  const syncUserEmailDisplay = document.getElementById('syncUserEmailDisplay');
+  const syncLogoutBtn = document.getElementById('syncLogoutBtn');
+
   const sheetsUnlinkedState = document.getElementById('sheetsUnlinkedState');
   const sheetsLinkedState = document.getElementById('sheetsLinkedState');
   const sheetUrlInput = document.getElementById('sheetUrlInput');
@@ -360,6 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const linkedSheetIdDisplay = document.getElementById('linkedSheetIdDisplay');
   const forceSyncBtn = document.getElementById('forceSyncBtn');
   const unlinkSheetBtn = document.getElementById('unlinkSheetBtn');
+
   const sheetManager = new SheetManager();
 
   // New Catalogue Controls
@@ -808,41 +819,97 @@ document.addEventListener('DOMContentLoaded', () => {
       loadCatalogue();
   });
 
-  // --- Feature: Google Sheets Sync Logic ---
-  const updateSheetsSyncUI = (activeList) => {
-      if (!IS_LOGGED_IN || !activeList) {
-          syncToSheetsToggle.disabled = true;
-          syncToSheetsToggle.checked = false;
-          sheetsSyncBadge.style.display = 'block';
-          sheetsSyncBadge.textContent = "Pro Feature";
-          sheetsSyncBadge.style.background = "rgba(100, 116, 139, 0.1)";
-          sheetsSyncBadge.style.color = "var(--text-muted)";
+  // --- Feature: Cloud Sync Logic (Google Sheets & Excel Online) ---
 
-          sheetsUnlinkedState.style.display = 'none';
-          sheetsLinkedState.style.display = 'none';
+  if (syncLoginGoogleBtn) {
+      syncLoginGoogleBtn.addEventListener('click', async () => {
+          try {
+              const session = await sheetManager.loginWithGoogle(true);
+              IS_LOGGED_IN = true;
+              USER_INFO = session;
+              updateUIForAuth(); // Update global auth UI
+              // sync logic update happens in updateUIForAuth -> loadCatalogue -> updateSheetsSyncUI
+          } catch(e) {
+              alert("Google Login failed: " + e.message);
+          }
+      });
+  }
+
+  if (syncLoginMicrosoftBtn) {
+      syncLoginMicrosoftBtn.addEventListener('click', async () => {
+          try {
+              const session = await sheetManager.loginWithMicrosoft(true);
+              IS_LOGGED_IN = true;
+              USER_INFO = session;
+              updateUIForAuth(); // Update global auth UI
+          } catch(e) {
+              alert("Microsoft Login failed: " + e.message);
+          }
+      });
+  }
+
+  if (syncLogoutBtn) {
+      syncLogoutBtn.addEventListener('click', () => {
+          // Re-use global logout logic
+          if (logoutBtn) logoutBtn.click();
+      });
+  }
+
+  const updateSheetsSyncUI = async (activeList) => {
+      // 1. Determine Auth State
+      const session = await sheetManager.getSession();
+      const sheetsSyncContainer = document.getElementById('sheetsSyncContainer');
+
+      // Default to "Not Logged In" UI
+      syncStateLoggedOut.style.display = 'flex';
+      syncStateLoggedIn.style.display = 'none';
+      syncToSheetsToggle.disabled = true;
+      syncToSheetsToggle.checked = false;
+      sheetsSyncBadge.style.display = 'block';
+      sheetsSyncBadge.textContent = "Pro Feature";
+      sheetsSyncBadge.style.background = "rgba(100, 116, 139, 0.1)";
+      sheetsSyncBadge.style.color = "var(--text-muted)";
+      if (sheetsSyncContainer) {
+          sheetsSyncContainer.style.background = "var(--bg-input)";
+          sheetsSyncContainer.style.borderColor = "var(--border)";
+      }
+
+      if (!session) {
           return;
       }
+
+      // Logged In State
+      syncStateLoggedOut.style.display = 'none';
+      syncStateLoggedIn.style.display = 'flex';
+
+      // Set Provider Specific UI Text
+      const providerStr = session.provider === 'google' ? 'Google' : 'Microsoft';
+      const providerIcon = session.provider === 'google' ? '🟢' : '🔵';
+      if (syncTitleText) syncTitleText.textContent = `Sync to ${providerStr}`;
+      if (syncUserEmailDisplay) syncUserEmailDisplay.textContent = `Connected: ${session.email}`;
+      if (sheetUrlInput) sheetUrlInput.placeholder = session.provider === 'google' ? 'Link Google Sheet URL' : 'Link Excel Online URL';
+
+      if (!activeList) return; // Wait for catalogue to load
 
       syncToSheetsToggle.disabled = false;
       const isLinked = !!activeList.linkedSheetId;
       syncToSheetsToggle.checked = activeList.sheetsSyncEnabled || false;
-      const sheetsSyncContainer = document.getElementById('sheetsSyncContainer');
 
       // Clear any previous errors
       sheetConnectError.style.display = 'none';
       sheetConnectError.textContent = '';
-      sheetUrlInput.value = '';
+      if (!isLinked) sheetUrlInput.value = '';
 
       if (activeList.sheetsSyncEnabled) {
           if (isLinked) {
               sheetsSyncBadge.style.display = 'block';
-              sheetsSyncBadge.textContent = "🟢 Connected";
-              sheetsSyncBadge.style.background = "rgba(34, 197, 94, 0.1)";
-              sheetsSyncBadge.style.color = "var(--success)";
+              sheetsSyncBadge.textContent = `${providerIcon} Connected`;
+              sheetsSyncBadge.style.background = session.provider === 'google' ? "rgba(34, 197, 94, 0.1)" : "rgba(59, 130, 246, 0.1)";
+              sheetsSyncBadge.style.color = session.provider === 'google' ? "var(--success)" : "#3b82f6";
 
               if (sheetsSyncContainer) {
-                  sheetsSyncContainer.style.background = "rgba(34, 197, 94, 0.05)";
-                  sheetsSyncContainer.style.borderColor = "rgba(34, 197, 94, 0.2)";
+                  sheetsSyncContainer.style.background = session.provider === 'google' ? "rgba(34, 197, 94, 0.05)" : "rgba(59, 130, 246, 0.05)";
+                  sheetsSyncContainer.style.borderColor = session.provider === 'google' ? "rgba(34, 197, 94, 0.2)" : "rgba(59, 130, 246, 0.2)";
               }
 
               sheetsUnlinkedState.style.display = 'none';
