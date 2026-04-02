@@ -351,9 +351,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Sheets Sync UI Elements
   const syncToSheetsToggle = document.getElementById('syncToSheetsToggle');
-  const sheetsSyncStatus = document.getElementById('sheetsSyncStatus');
+  const sheetsSyncBadge = document.getElementById('sheetsSyncBadge');
+  const sheetsUnlinkedState = document.getElementById('sheetsUnlinkedState');
+  const sheetsLinkedState = document.getElementById('sheetsLinkedState');
+  const sheetUrlInput = document.getElementById('sheetUrlInput');
+  const connectSheetBtn = document.getElementById('connectSheetBtn');
+  const sheetConnectError = document.getElementById('sheetConnectError');
+  const linkedSheetIdDisplay = document.getElementById('linkedSheetIdDisplay');
   const forceSyncBtn = document.getElementById('forceSyncBtn');
-  const linkSheetBtn = document.getElementById('linkSheetBtn');
+  const unlinkSheetBtn = document.getElementById('unlinkSheetBtn');
   const sheetManager = new SheetManager();
 
   // New Catalogue Controls
@@ -807,33 +813,68 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!IS_LOGGED_IN || !activeList) {
           syncToSheetsToggle.disabled = true;
           syncToSheetsToggle.checked = false;
-          sheetsSyncStatus.textContent = "Pro Feature";
-          forceSyncBtn.style.display = 'none';
-          linkSheetBtn.style.display = 'none';
+          sheetsSyncBadge.style.display = 'block';
+          sheetsSyncBadge.textContent = "Pro Feature";
+          sheetsSyncBadge.style.background = "rgba(100, 116, 139, 0.1)";
+          sheetsSyncBadge.style.color = "var(--text-muted)";
+
+          sheetsUnlinkedState.style.display = 'none';
+          sheetsLinkedState.style.display = 'none';
           return;
       }
 
       syncToSheetsToggle.disabled = false;
       const isLinked = !!activeList.linkedSheetId;
       syncToSheetsToggle.checked = activeList.sheetsSyncEnabled || false;
+      const sheetsSyncContainer = document.getElementById('sheetsSyncContainer');
+
+      // Clear any previous errors
+      sheetConnectError.style.display = 'none';
+      sheetConnectError.textContent = '';
+      sheetUrlInput.value = '';
 
       if (activeList.sheetsSyncEnabled) {
           if (isLinked) {
-              sheetsSyncStatus.textContent = `🟢 Linked: ${activeList.linkedSheetId.substring(0, 8)}...`;
-              sheetsSyncStatus.style.color = "var(--success)";
-              forceSyncBtn.style.display = 'block';
-              linkSheetBtn.style.display = 'none';
+              sheetsSyncBadge.style.display = 'block';
+              sheetsSyncBadge.textContent = "🟢 Connected";
+              sheetsSyncBadge.style.background = "rgba(34, 197, 94, 0.1)";
+              sheetsSyncBadge.style.color = "var(--success)";
+
+              if (sheetsSyncContainer) {
+                  sheetsSyncContainer.style.background = "rgba(34, 197, 94, 0.05)";
+                  sheetsSyncContainer.style.borderColor = "rgba(34, 197, 94, 0.2)";
+              }
+
+              sheetsUnlinkedState.style.display = 'none';
+              sheetsLinkedState.style.display = 'flex';
+              linkedSheetIdDisplay.textContent = `ID: ${activeList.linkedSheetId.substring(0, 12)}...`;
           } else {
-              sheetsSyncStatus.textContent = "🟡 Pending Link";
-              sheetsSyncStatus.style.color = "var(--warning)";
-              forceSyncBtn.style.display = 'none';
-              linkSheetBtn.style.display = 'block';
+              sheetsSyncBadge.style.display = 'block';
+              sheetsSyncBadge.textContent = "🟡 Setup Required";
+              sheetsSyncBadge.style.background = "rgba(245, 158, 11, 0.1)";
+              sheetsSyncBadge.style.color = "var(--warning)";
+
+              if (sheetsSyncContainer) {
+                  sheetsSyncContainer.style.background = "rgba(245, 158, 11, 0.05)";
+                  sheetsSyncContainer.style.borderColor = "rgba(245, 158, 11, 0.2)";
+              }
+
+              sheetsUnlinkedState.style.display = 'flex';
+              sheetsLinkedState.style.display = 'none';
           }
       } else {
-          sheetsSyncStatus.textContent = "Not Linked";
-          sheetsSyncStatus.style.color = "var(--text-muted)";
-          forceSyncBtn.style.display = 'none';
-          linkSheetBtn.style.display = 'none';
+          sheetsSyncBadge.style.display = 'block';
+          sheetsSyncBadge.textContent = "Inactive";
+          sheetsSyncBadge.style.background = "rgba(100, 116, 139, 0.1)";
+          sheetsSyncBadge.style.color = "var(--text-muted)";
+
+          if (sheetsSyncContainer) {
+              sheetsSyncContainer.style.background = "var(--bg-input)";
+              sheetsSyncContainer.style.borderColor = "var(--border)";
+          }
+
+          sheetsUnlinkedState.style.display = 'none';
+          sheetsLinkedState.style.display = 'none';
       }
   };
 
@@ -847,33 +888,58 @@ document.addEventListener('DOMContentLoaded', () => {
               chrome.storage.local.set({ [key]: container }, () => {
                   updateSheetsSyncUI(container[currentCatalogueId]);
                   if (isEnabled && !container[currentCatalogueId].linkedSheetId) {
-                      linkSheetBtn.click();
+                      sheetUrlInput.focus();
                   }
               });
           }
       });
   });
 
-  linkSheetBtn.addEventListener('click', () => {
-      const sheetId = prompt("Enter Google Sheet ID (from the URL):");
-      if (!sheetId) {
-          syncToSheetsToggle.checked = false;
-          syncToSheetsToggle.dispatchEvent(new Event('change'));
-          return;
-      }
-
-      const key = getCatalogueContainerKey();
-      chrome.storage.local.get([key], (data) => {
-          const container = data[key];
-          if (container && container[currentCatalogueId]) {
-              container[currentCatalogueId].linkedSheetId = sheetId;
-              chrome.storage.local.set({ [key]: container }, () => {
-                  updateSheetsSyncUI(container[currentCatalogueId]);
-                  forceSyncBtn.click(); // Initial pull
-              });
+  if (connectSheetBtn) {
+      connectSheetBtn.addEventListener('click', () => {
+          const inputVal = sheetUrlInput.value.trim();
+          if (!inputVal) {
+              sheetConnectError.textContent = "Please enter a valid URL or ID.";
+              sheetConnectError.style.display = 'block';
+              return;
           }
+
+          const key = getCatalogueContainerKey();
+          chrome.storage.local.get([key], (data) => {
+              const container = data[key];
+              if (container && container[currentCatalogueId]) {
+                  try {
+                      const extractedId = sheetManager.extractSpreadsheetId(inputVal);
+                      container[currentCatalogueId].linkedSheetId = extractedId;
+                      sheetConnectError.style.display = 'none';
+                      chrome.storage.local.set({ [key]: container }, () => {
+                          updateSheetsSyncUI(container[currentCatalogueId]);
+                          forceSyncBtn.click(); // Initial pull
+                      });
+                  } catch (e) {
+                      sheetConnectError.textContent = e.message;
+                      sheetConnectError.style.display = 'block';
+                  }
+              }
+          });
       });
-  });
+  }
+
+  if (unlinkSheetBtn) {
+      unlinkSheetBtn.addEventListener('click', () => {
+          const key = getCatalogueContainerKey();
+          chrome.storage.local.get([key], (data) => {
+              const container = data[key];
+              if (container && container[currentCatalogueId]) {
+                  container[currentCatalogueId].linkedSheetId = null;
+                  // Keep toggle enabled, just return to setup state so they can edit URL
+                  chrome.storage.local.set({ [key]: container }, () => {
+                      updateSheetsSyncUI(container[currentCatalogueId]);
+                  });
+              }
+          });
+      });
+  }
 
   forceSyncBtn.addEventListener('click', async () => {
       const originalText = forceSyncBtn.textContent;

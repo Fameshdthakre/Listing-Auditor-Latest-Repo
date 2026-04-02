@@ -167,16 +167,30 @@
              </div>
         </div>
 
-        <div id="sheetsSyncContainer" style="background:rgba(34, 197, 94, 0.05); border:1px solid rgba(34, 197, 94, 0.2); padding:8px; border-radius:6px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-             <div style="display:flex; flex-direction:column; gap:2px;">
-                 <label style="font-size:11px; font-weight:600; display:flex; align-items:center; gap:4px; cursor:pointer;">
-                     <input type="checkbox" id="syncToSheetsToggle">
+        <div id="sheetsSyncContainer" style="background:var(--bg-input); border:1px solid var(--border); padding:12px; border-radius:8px; margin-bottom:12px; display:flex; flex-direction:column; gap:8px; transition:all 0.3s ease;">
+             <div style="display:flex; justify-content:space-between; align-items:center;">
+                 <label style="font-size:12px; font-weight:700; display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--text-main);">
+                     <input type="checkbox" id="syncToSheetsToggle" style="width:16px; height:16px;">
                      Sync to Google Sheets
                  </label>
-                 <span id="sheetsSyncStatus" style="font-size:9px; color:var(--text-muted);">Not Linked</span>
+                 <span id="sheetsSyncBadge" style="font-size:10px; font-weight:600; padding:2px 6px; border-radius:4px; display:none;"></span>
              </div>
-             <button id="forceSyncBtn" class="auth-btn" style="padding:4px 8px; font-size:10px; width:auto; display:none;">Force Sync</button>
-             <button id="linkSheetBtn" class="auth-btn" style="padding:4px 8px; font-size:10px; width:auto; background:var(--primary); color:#fff; display:none;">Link Sheet</button>
+
+             <div id="sheetsUnlinkedState" style="display:none; flex-direction:column; gap:4px; margin-top:4px;">
+                 <div style="display:flex; gap:6px;">
+                     <input type="text" id="sheetUrlInput" placeholder="Paste Google Sheet URL or ID" style="flex:1; padding:6px; font-size:11px; border:1px solid var(--border); border-radius:4px; background:var(--bg-input); color:var(--text-main);">
+                     <button id="connectSheetBtn" class="auth-btn" style="background:var(--primary); color:#fff; padding:6px 12px;">Connect</button>
+                 </div>
+                 <div id="sheetConnectError" style="color:var(--danger); font-size:10px; display:none; margin-top:2px;"></div>
+             </div>
+
+             <div id="sheetsLinkedState" style="display:none; justify-content:space-between; align-items:center; margin-top:4px; padding-top:8px; border-top:1px dashed var(--border);">
+                 <div style="font-size:11px; color:var(--text-muted); font-family:monospace;" id="linkedSheetIdDisplay"></div>
+                 <div style="display:flex; gap:6px;">
+                     <button id="forceSyncBtn" class="auth-btn hover-btn" style="background:rgba(34, 197, 94, 0.1); color:var(--success); border-color:rgba(34, 197, 94, 0.3); padding:4px 8px;">🔄 Sync Now</button>
+                     <button id="unlinkSheetBtn" class="auth-btn hover-btn-danger" style="background:transparent; color:var(--danger); border:1px solid var(--danger); padding:4px 8px;">Disconnect / Edit URL</button>
+                 </div>
+             </div>
         </div>
         
         <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 10px; font-weight: 700; padding: 4px 8px; color: var(--text-muted); border-bottom: 1px solid var(--border);">

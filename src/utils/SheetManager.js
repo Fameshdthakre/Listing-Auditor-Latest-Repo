@@ -33,12 +33,26 @@ export class SheetManager {
     }
 
     /**
+     * Extracts the Spreadsheet ID from a full Google Sheets URL or returns the ID if already clean.
+     * @param {string} input - The URL or ID string.
+     * @returns {string} The 44-character Spreadsheet ID.
+     */
+    extractSpreadsheetId(input) {
+        if (!input) return "";
+        const match = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        return match ? match[1] : input.trim();
+    }
+
+    /**
      * Fetches all rows from the first sheet, using the first row as headers.
-     * @param {string} spreadsheetId
+     * @param {string} inputId
      * @returns {Promise<Array<Object>>} Array of row objects mapped to headers
      */
-    async fetchRows(spreadsheetId) {
+    async fetchRows(inputId) {
         try {
+            const spreadsheetId = this.extractSpreadsheetId(inputId);
+            if (!spreadsheetId) throw new Error("Invalid Spreadsheet ID or URL provided.");
+
             const token = await this.getToken();
 
             // First, get the sheet name to ensure we query the right range
@@ -91,14 +105,17 @@ export class SheetManager {
 
     /**
      * Updates multiple specific cells in the spreadsheet in a single batch request.
-     * @param {string} spreadsheetId
+     * @param {string} inputId
      * @param {Array<{range: string, values: Array<Array<any>>}>} updates
      * Example update object: { range: "Sheet1!D2", values: [["Passed"]] }
      */
-    async batchUpdateRows(spreadsheetId, updates) {
+    async batchUpdateRows(inputId, updates) {
         if (!updates || updates.length === 0) return;
 
         try {
+            const spreadsheetId = this.extractSpreadsheetId(inputId);
+            if (!spreadsheetId) throw new Error("Invalid Spreadsheet ID or URL provided.");
+
             const token = await this.getToken();
 
             const payload = {
