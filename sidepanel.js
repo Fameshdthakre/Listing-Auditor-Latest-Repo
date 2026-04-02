@@ -52,6 +52,7 @@
   
   import { runAuditComparison, AUDIT_REQUIREMENTS } from './auditorEngine.js';
   import { generateTemplate, validateUpload, fetchAiColumnMapping, sanitizeData } from './src/pipeline.js';
+  import { generateFlatFile, generateSupportPrompt } from './src/remediationAgent.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Elements
@@ -559,7 +560,83 @@ document.addEventListener('DOMContentLoaded', () => {
               const actDesc = r.attributes.description;
               addDiffSection("Description", normalizeDiffInput(expDesc), normalizeDiffInput(actDesc));
 
+              // Render Support Case Logic for Variation Issues
+              if (r.error === undefined && r.attributes && r.comparisonData) {
+                  const expFamily = r.comparisonData.expected_variation_family ? (Array.isArray(r.comparisonData.expected_variation_family) ? r.comparisonData.expected_variation_family : JSON.parse(r.comparisonData.expected_variation_family.replace(/'/g, '"'))) : [];
+                  const liveFamily = r.attributes.variationFamily || [];
+                  const missingAsins = expFamily.filter(asin => !liveFamily.includes(asin));
+
+                  if (missingAsins.length > 0) {
+                      const orphanSection = document.createElement('div');
+                      orphanSection.style.marginBottom = '8px';
+                      orphanSection.style.fontSize = '11px';
+                      orphanSection.style.color = 'var(--danger)';
+                      orphanSection.innerHTML = `<strong>⚠️ Orphaned Variations Detected:</strong> ${missingAsins.join(', ')}`;
+
+                      const supportBtn = document.createElement('button');
+                      supportBtn.textContent = 'Copy Support Prompt';
+                      supportBtn.style.marginLeft = '8px';
+                      supportBtn.style.fontSize = '9px';
+                      supportBtn.style.padding = '2px 4px';
+                      supportBtn.style.cursor = 'pointer';
+                      supportBtn.addEventListener('click', () => {
+                          const promptText = generateSupportPrompt('variation_orphan', r, { missing: missingAsins.join(', ') });
+                          navigator.clipboard.writeText(promptText);
+                          supportBtn.textContent = 'Copied!';
+                          setTimeout(() => supportBtn.textContent = 'Copy Support Prompt', 2000);
+                      });
+
+                      orphanSection.appendChild(supportBtn);
+                      card.appendChild(orphanSection);
+                  }
+              }
+
+              // --- Feature: Agentic Auto-Remediation (Action Layer) ---
+              // Add a "Fix This" Button to the Card if there are text/attribute discrepancies
               if (card.childNodes.length > 1) {
+                  const fixBtnContainer = document.createElement('div');
+                  fixBtnContainer.style.marginTop = '12px';
+                  fixBtnContainer.style.textAlign = 'right';
+
+                  const fixBtn = document.createElement('button');
+                  fixBtn.textContent = '🔧 Fix This (Generate Flat File)';
+                  fixBtn.className = 'auth-btn';
+                  fixBtn.style.background = 'var(--primary)';
+                  fixBtn.style.color = '#fff';
+                  fixBtn.style.fontSize = '11px';
+                  fixBtn.style.padding = '6px 12px';
+                  fixBtn.style.border = 'none';
+                  fixBtn.style.borderRadius = '4px';
+                  fixBtn.style.cursor = 'pointer';
+
+                  fixBtn.addEventListener('click', () => {
+                      const failedFields = [];
+                      if (normalizeDiffInput(expTitle) !== normalizeDiffInput(actTitle)) failedFields.push('title');
+                      if (normalizeDiffInput(expBullets) !== normalizeDiffInput(actBullets)) failedFields.push('bullets');
+                      if (normalizeDiffInput(expDesc) !== normalizeDiffInput(actDesc)) failedFields.push('description');
+
+                      if (failedFields.length > 0) {
+                          try {
+                              const { blob, fileName } = generateFlatFile(r, failedFields);
+                              const url = URL.createObjectURL(blob);
+                              const link = document.createElement('a');
+                              link.href = url;
+                              link.download = fileName;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              URL.revokeObjectURL(url);
+                          } catch (err) {
+                              alert(`Remediation Error: ${err.message}`);
+                          }
+                      } else {
+                          alert("No discrepancies detected for Flat File generation.");
+                      }
+                  });
+
+                  fixBtnContainer.appendChild(fixBtn);
+                  card.appendChild(fixBtnContainer);
+
                   modalBody.appendChild(card);
               }
           });
