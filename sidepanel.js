@@ -1172,6 +1172,91 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   };
 
+  // --- Feature: AI Visual Auditing (Image Upload & Base64) ---
+  const imageDragDropArea = document.getElementById('imageDragDropArea');
+  const localImagesInput = document.getElementById('localImagesInput');
+  const localImagesPreview = document.getElementById('localImagesPreview');
+  const localImagesStatus = document.getElementById('localImagesStatus');
+  let uploadedTargetImagesBase64 = []; // Array to store base64 images
+
+  if (imageDragDropArea && localImagesInput) {
+      imageDragDropArea.addEventListener('click', () => localImagesInput.click());
+
+      // Drag & Drop handlers
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+          imageDragDropArea.addEventListener(eventName, preventDefaults, false);
+      });
+      function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+      imageDragDropArea.addEventListener('dragenter', () => imageDragDropArea.classList.add('highlight'));
+      imageDragDropArea.addEventListener('dragover', () => imageDragDropArea.classList.add('highlight'));
+      imageDragDropArea.addEventListener('dragleave', () => imageDragDropArea.classList.remove('highlight'));
+      imageDragDropArea.addEventListener('drop', handleImageDrop);
+      localImagesInput.addEventListener('change', (e) => handleImageFiles(e.target.files));
+  }
+
+  function handleImageDrop(e) {
+      imageDragDropArea.classList.remove('highlight');
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      handleImageFiles(files);
+  }
+
+  function handleImageFiles(files) {
+      if (!files || files.length === 0) return;
+      localImagesStatus.textContent = `Processing ${files.length} images...`;
+
+      Array.from(files).forEach(file => {
+          if (!file.type.startsWith('image/')) return;
+
+          const reader = new FileReader();
+          reader.onload = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                  // Resize/Compress logic
+                  const canvas = document.createElement('canvas');
+                  const MAX_SIZE = 1024;
+                  let width = img.width;
+                  let height = img.height;
+
+                  if (width > height) {
+                      if (width > MAX_SIZE) {
+                          height *= MAX_SIZE / width;
+                          width = MAX_SIZE;
+                      }
+                  } else {
+                      if (height > MAX_SIZE) {
+                          width *= MAX_SIZE / height;
+                          height = MAX_SIZE;
+                      }
+                  }
+                  canvas.width = width;
+                  canvas.height = height;
+                  const ctx = canvas.getContext('2d');
+                  ctx.drawImage(img, 0, 0, width, height);
+
+                  const base64Str = canvas.toDataURL('image/jpeg', 0.8);
+                  uploadedTargetImagesBase64.push(base64Str);
+
+                  // Render Thumbnail
+                  const thumb = document.createElement('img');
+                  thumb.src = base64Str;
+                  thumb.style.width = '40px';
+                  thumb.style.height = '40px';
+                  thumb.style.objectFit = 'cover';
+                  thumb.style.borderRadius = '4px';
+                  thumb.style.border = '1px solid var(--border)';
+                  localImagesPreview.appendChild(thumb);
+
+                  localImagesStatus.textContent = `${uploadedTargetImagesBase64.length} target images ready.`;
+                  localImagesStatus.style.color = "var(--success)";
+              };
+              img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
+      });
+  }
+
   // --- Global Search Logic ---
   if (globalCatalogSearch) {
       globalCatalogSearch.addEventListener('input', (e) => {
@@ -3644,6 +3729,7 @@ document.addEventListener('DOMContentLoaded', () => {
         addIfActive('auditVariation', ["Expected Variation Count", "Match Variation Count", "Expected Variation Theme", "Match Variation Theme"]);
         addIfActive('auditBuyBox', ["Expected Seller", "Match Seller", "Expected Price", "Match Price"]);
         addIfActive('auditDelivery', ["Expected Max Days", "Actual Delivery", "Match Delivery"]);
+        addIfActive('auditVisuals', ["Visual Audit Status", "Visual Note"]);
 
     } else {
         // Legacy Catalogue Comparison (if scraping mode but catalogue used)
@@ -3693,9 +3779,10 @@ document.addEventListener('DOMContentLoaded', () => {
         tabMap.auditVariation = createTab('Variation_Audit', ['QueryASIN', 'Expected Variation Count', 'Match Variation Count', 'Expected Variation Theme', 'Match Variation Theme']);
         tabMap.auditBuyBox = createTab('BuyBox_Audit', ['QueryASIN', 'Expected Price', 'Match Price', 'Expected Seller', 'Match Seller']);
         tabMap.auditDelivery = createTab('Delivery_Audit', ['QueryASIN', 'Expected Max Days', 'Actual Delivery', 'Match Delivery']);
+        tabMap.auditVisuals = createTab('AI_Visual_Audit', ['QueryASIN', 'Visual Audit Status', 'Note', 'Analysis JSON']);
     }
 
-    const rows = results.map(tabData => {
+    const rows = await Promise.all(results.map(async tabData => {
         let rowStatus = "SUCCESS";
         if (tabData.error) {
             rowStatus = "ERROR";
@@ -3910,12 +3997,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 row["Expected Comparison ASINs"] = "N/A"; row["Match Comparison ASINs"] = "ERROR";
                 row["Expected Max Days"] = "N/A"; row["Actual Delivery"] = "ERROR"; row["Match Delivery"] = "ERROR";
             } else {
-                auditReport = runAuditComparison(
+                let visualData = null;
+                // Gather visual data if AI Visual Audit is enabled (mock conditions for Phase 2)
+                const isAiVisualEnabled = document.querySelector('.audit-checkbox[value="auditVisuals"]')?.checked;
+                if (isAiVisualEnabled) {
+                    visualData = {
+                        targetImagesBase64: uploadedTargetImagesBase64.length > 0 ? uploadedTargetImagesBase64 : (tabData.comparisonData?.expected_images || []),
+                        liveImageUrls: tabData.data?.map(img => img.hiRes || img.large) || []
+                    };
+                }
+
+                auditReport = await runAuditComparison(
                     // Live Data (Attributes + Data array)
                     { ...tabData.attributes, data: tabData.data }, 
                     // Source Data (Comparison Data from Template)
                     tabData.comparisonData || {},
-                    customRules
+                    customRules,
+                    visualData
                 );
 
                 // Build Audit Summary
@@ -3998,6 +4096,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 row["Expected Max Days"] = tabData.comparisonData?.expected_delivery_days || "N/A";
                 row["Actual Delivery"] = tabData.attributes.primeOrFastestDeliveryDate || tabData.attributes.freeDeliveryDate || "N/A";
                 row["Match Delivery"] = (tabData.comparisonData?.expected_delivery_days) ? "MANUAL" : "N/A";
+
+                // Visuals
+                const visualDetail = r.visuals?.details?.[0];
+                row["Visual Audit Status"] = visualDetail ? (visualDetail.passed ? "PASS" : "FAIL") : "N/A";
+                row["Visual Note"] = visualDetail ? visualDetail.note : "N/A";
             }
 
             // Populate Audit Point Tabs (for all rows, preserving QAsin order)
@@ -4072,6 +4175,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tabMap.auditVariation) tabMap.auditVariation.rows.push([queryAsin, comp.expected_variation_count || 'N/A', row['Match Variation Count'], comp.expected_variation_theme || 'N/A', row['Match Variation Theme']]);
             if (tabMap.auditBuyBox) tabMap.auditBuyBox.rows.push([queryAsin, comp.expected_price || 'N/A', row['Match Price'], comp.expected_seller || 'N/A', row['Match Seller']]);
             if (tabMap.auditDelivery) tabMap.auditDelivery.rows.push([queryAsin, comp.expected_delivery_days || 'N/A', row['Actual Delivery'], row['Match Delivery']]);
+            if (tabMap.auditVisuals) {
+                const visualDetail = auditReport ? auditReport.results.visuals?.details?.[0] : null;
+                tabMap.auditVisuals.rows.push([
+                    queryAsin,
+                    row['Visual Audit Status'],
+                    row['Visual Note'],
+                    visualDetail ? JSON.stringify(visualDetail.analysis || {}) : "{}"
+                ]);
+            }
 
         } else if (tabData.expected && !tabData.error) {
             // Legacy Watchlist Comparison
@@ -4099,7 +4211,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Generate CSV Line from row object using header order
         const rowStr = finalHeaders.map(h => cleanField(row[h])).join(",");
         return { rowObj: row, csvLine: rowStr };
-    });
+    }));
 
     // --- Update Dynamic Headers for Tabs ---
     if (tabMap.variationFamily) {

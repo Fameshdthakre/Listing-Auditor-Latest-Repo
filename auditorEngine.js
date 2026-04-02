@@ -7,7 +7,32 @@
  * @param {Object} sourceData - Data from the user's Catalogue/Template (expected values)
  * @return {Object} auditReport - Detailed breakdown of pass/fail for each criteria
  */
-export const runAuditComparison = (liveData, sourceData, customRules = []) => {
+export const auditVisuals = async (targetImagesBase64, liveImageUrls) => {
+    try {
+        const response = await fetch('https://us-central1-your-project.cloudfunctions.net/visualAuditCompare', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                targetImages: targetImagesBase64,
+                liveImages: liveImageUrls
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Visual Audit API Error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data; // Expected to contain visual diff insights or similarity scores
+    } catch (e) {
+        console.error("AI Visual Audit failed:", e);
+        return { error: e.message, passed: false };
+    }
+};
+
+export const runAuditComparison = async (liveData, sourceData, customRules = [], visualData = null) => {
     const report = {
         score: 0,
         totalChecks: 0,
@@ -52,6 +77,25 @@ export const runAuditComparison = (liveData, sourceData, customRules = []) => {
     
     // 11. Dynamic Custom Rules Audit
     report.results.customRules = auditCustomRules(live, source, customRules);
+
+    // 12. Visual Audit (Phase 2 AI Integration)
+    if (visualData && visualData.targetImagesBase64 && visualData.liveImageUrls) {
+        const visualResult = await auditVisuals(visualData.targetImagesBase64, visualData.liveImageUrls);
+        report.results.visuals = {
+            status: 'completed',
+            passed: visualResult.passed !== false,
+            details: [
+                {
+                    label: "AI Visual Audit",
+                    passed: visualResult.passed !== false,
+                    note: visualResult.error ? `Error: ${visualResult.error}` : "AI Visual comparison complete",
+                    analysis: visualResult
+                }
+            ]
+        };
+    } else {
+        report.results.visuals = { passed: true, status: 'skipped' };
+    }
 
     // Calculate Final Score (Simple percentage for now)
     let passed = 0;
