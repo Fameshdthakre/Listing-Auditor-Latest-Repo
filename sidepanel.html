@@ -831,6 +831,23 @@
   <script type="module" src="sidepanel.js"></script>
   
 
+  <!-- Mapping Modal -->
+  <dialog id="mappingModal" style="background:var(--surface-solid); color:var(--text-main); border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow-lg); width: 90%; max-width: 400px;">
+      <div class="modal-header">
+          <span>Map Columns</span>
+          <button id="closeMappingModalBtn" aria-label="Close modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px; font-size: 12px; max-height: 60vh; overflow-y: auto;">
+          <p style="margin-top:0; color:var(--text-muted);">Please confirm or adjust how your columns map to our system targets.</p>
+          <div id="mappingList" style="display: flex; flex-direction: column; gap: 12px;">
+              <!-- Dynamic rows injected here -->
+          </div>
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content:flex-end;">
+          <button id="confirmMappingBtn" class="auth-btn" style="background:var(--success); color:#fff; width:auto;">Confirm & Import</button>
+      </div>
+  </dialog>
+
   <!-- Custom Rule Modal -->
   <dialog id="customRuleModal" style="background:var(--surface-solid); color:var(--text-main); border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow-lg);">
       <div class="modal-header">

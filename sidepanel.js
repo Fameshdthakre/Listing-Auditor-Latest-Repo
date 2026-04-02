@@ -7,6 +7,7 @@
   } from './scraperEngine.js';
   
   import { runAuditComparison, AUDIT_REQUIREMENTS } from './auditorEngine.js';
+  import { generateTemplate, validateUpload, fetchAiColumnMapping, sanitizeData } from './src/pipeline.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Elements
@@ -47,8 +48,191 @@ document.addEventListener('DOMContentLoaded', () => {
   // Trigger File Input logic
   if (triggerImportBtn && catalogueInput) {
       triggerImportBtn.addEventListener('click', () => catalogueInput.click());
-      catalogueInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0], catalogueImportStatus, 'auditor'));
+      catalogueInput.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          // Pipeline Step A: Validation
+          try {
+              catalogueImportStatus.textContent = "Validating file...";
+              const rawData = await validateUpload(file);
+
+              // Get current headers from the file
+              const userHeaders = Object.keys(rawData[0] || {});
+
+              // Get expected targets from MASTER_COLUMNS + active Custom Rules
+              const systemTargets = [
+                  ...MASTER_COLUMNS.map(c => c.key),
+                  ...customRules.filter(r => r.isActive).map(r => r.name),
+                  'Ignore' // Added option
+              ];
+
+              catalogueImportStatus.textContent = "AI mapping columns...";
+              // Pipeline Step B: AI Auto-Mapping
+              const aiMapping = await fetchAiColumnMapping(userHeaders, systemTargets);
+
+              // Pipeline Step C: Render UI for Confirmation
+              renderMappingUI(rawData, userHeaders, aiMapping, systemTargets);
+
+          } catch (err) {
+              catalogueImportStatus.textContent = err.message;
+              catalogueImportStatus.style.color = "var(--danger)";
+          }
+      });
   }
+
+  // Define renderMappingUI function
+  function renderMappingUI(rawData, userHeaders, aiMapping, systemTargets) {
+      const mappingModal = document.getElementById('mappingModal');
+      const mappingList = document.getElementById('mappingList');
+      const confirmMappingBtn = document.getElementById('confirmMappingBtn');
+
+      mappingList.innerHTML = ''; // Clear previous
+
+      userHeaders.forEach(header => {
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.flexDirection = 'column';
+          row.style.gap = '4px';
+
+          const label = document.createElement('label');
+          label.style.fontWeight = 'bold';
+          label.textContent = header;
+
+          const select = document.createElement('select');
+          select.dataset.header = header; // Store user header name
+          select.className = 'mapping-select';
+          select.style.padding = '6px';
+          select.style.borderRadius = '4px';
+          select.style.border = '1px solid var(--border)';
+
+          systemTargets.forEach(target => {
+              const option = document.createElement('option');
+              option.value = target;
+              option.textContent = target;
+              select.appendChild(option);
+          });
+
+          // Pre-select AI suggestion
+          if (aiMapping[header] && systemTargets.includes(aiMapping[header])) {
+              select.value = aiMapping[header];
+          } else {
+              select.value = 'Ignore';
+          }
+
+          row.appendChild(label);
+          row.appendChild(select);
+          mappingList.appendChild(row);
+      });
+
+      // Overwrite previous event listener if it exists to prevent double-firing
+      confirmMappingBtn.replaceWith(confirmMappingBtn.cloneNode(true));
+      const newConfirmBtn = document.getElementById('confirmMappingBtn');
+
+      newConfirmBtn.addEventListener('click', async () => {
+          // Gather confirmed mapping
+          const confirmedMapping = {};
+          document.querySelectorAll('.mapping-select').forEach(select => {
+              confirmedMapping[select.dataset.header] = select.value;
+          });
+
+          // Pipeline Step D: Sanitize and finalize data
+          const goldenRecord = sanitizeData(rawData, confirmedMapping);
+
+          // Explicitly save the clean array as the GoldenRecord
+          await chrome.storage.local.set({ GoldenRecord: goldenRecord });
+
+          // Proceed with existing import logic using the sanitized array
+          processAndSaveGoldenRecord(goldenRecord);
+
+          mappingModal.close();
+      });
+
+      // Hook up close button for the new modal
+      const closeMappingModalBtn = document.getElementById('closeMappingModalBtn');
+      if (closeMappingModalBtn) {
+          closeMappingModalBtn.replaceWith(closeMappingModalBtn.cloneNode(true));
+          document.getElementById('closeMappingModalBtn').addEventListener('click', () => mappingModal.close());
+      }
+
+      mappingModal.showModal();
+  }
+
+  // Transition function from pipeline back to normal app flow
+  function processAndSaveGoldenRecord(goldenRecord) {
+      if (goldenRecord.length === 0) {
+          catalogueImportStatus.textContent = "No valid data to import.";
+          return;
+      }
+
+      // Convert Golden Record into the format expected by the Auditor
+      const items = goldenRecord.map(row => {
+          let asin = row['ASIN'] || row['QueryASIN'];
+          let url = row['url'] || row['page_url'];
+
+          if (!asin && url) {
+              const m = url.match(/([a-zA-Z0-9]{10})(?:[/?]|$)/);
+              if (m) asin = m[1];
+          } else if (asin && !url) {
+              url = `https://www.amazon.com/dp/${asin}`;
+          }
+
+          if (!asin) return null;
+
+          // Rebuild object in auditor format
+          const item = {
+              asin: asin.toUpperCase(),
+              url: url,
+              auditType: 'type2',
+              expected: {
+                  brand: row['brand'] || "",
+                  title: row['metaTitle'] || "",
+                  bullets: row['bullets'] || "",
+                  description: row['description'] || ""
+              },
+              comparisonData: {
+                  expected_title: row['metaTitle'],
+                  expected_bullets: row['bullets'],
+                  expected_description: row['description'],
+                  expected_brand: row['brand'],
+                  expected_rating: row['rating'],
+                  expected_reviews: row['reviews'],
+                  expected_bsr: row['bsr'],
+                  expected_images: row['ApprovedImagesJSON'], // Fallbacks might be needed depending on systemTargets mapping
+                  expected_video_titles: row['ApprovedVideoTitles'],
+                  expected_brand_story: row['hasBrandStory'],
+                  expected_aplus: row['hasAplus'],
+                  expected_comparison: row['comparisonAsins'],
+                  expected_variation_parent: row['parentAsin'],
+                  expected_variation_theme: row['variationTheme'],
+                  expected_variation_family: row['variationFamily'],
+                  expected_price: row['displayPrice'],
+                  expected_ships_from: row['shipsFrom'],
+                  expected_sold_by: row['soldBy'],
+                  expected_delivery_days: row['expected_delivery_days'] // Need to ensure mapping covers this
+              }
+          };
+
+          // Attach custom rules
+          customRules.forEach(rule => {
+              if (rule.isActive && row[rule.name] !== undefined) {
+                  item.comparisonData[rule.name] = row[rule.name];
+              }
+          });
+
+          return item;
+      }).filter(Boolean);
+
+      if (items.length > 0) {
+          openSaveToCatalogueModal(items);
+          catalogueImportStatus.textContent = `File parsed (${items.length} items). Please confirm save.`;
+          catalogueImportStatus.style.color = "var(--primary)";
+      } else {
+          catalogueImportStatus.textContent = "No valid ASIN/URL found in file after mapping.";
+          catalogueImportStatus.style.color = "var(--danger)";
+      }
+  }
+
 
   // Export Catalogue Logic
   if (exportCatalogueBtn) {
@@ -2467,9 +2651,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (downloadCatalogueTemplateBtn) {
       downloadCatalogueTemplateBtn.addEventListener('click', () => {
-          if (typeof XLSX === 'undefined') { alert("XLSX library not found."); return; }
-
-          // 1. Check selected Audit Options
+          // Prepare active rules based on selected audit types
           const selectedAudits = Array.from(document.querySelectorAll('.audit-checkbox:checked')).map(cb => cb.value);
 
           if (selectedAudits.length === 0) {
@@ -2477,124 +2659,27 @@ document.addEventListener('DOMContentLoaded', () => {
               return;
           }
 
-          const wb = XLSX.utils.book_new();
-
-          // 2. Build Column List Dynamically
-          // REMOVE Marketplace and Zipcode from base columns for Template
-          const baseColumns = ["QueryASIN"]; 
-          const columnSet = new Set();
+          const activeRules = [];
           
-          // Add Base
-          baseColumns.forEach(c => columnSet.add(c));
-
-          // Add Dynamic Columns
           selectedAudits.forEach(auditKey => {
               const config = AUDIT_TEMPLATE_CONFIG[auditKey];
               if (config && config.columns) {
-                  config.columns.forEach(col => columnSet.add(col));
+                  config.columns.forEach(col => {
+                      const renamedCol = COLUMN_RENAMES[col] || col;
+                      activeRules.push({ target: renamedCol });
+                  });
               }
           });
 
-          // Convert internal keys to Display Headers
-          const rawHeaders = Array.from(columnSet);
-          const headers = rawHeaders.map(h => COLUMN_RENAMES[h] || h);
-
-          // --- Style Definitions ---
-          const styleMainHeader = { font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 }, fill: { fgColor: { rgb: "215967" } } };
-          const styleSubHeader = { font: { color: { rgb: "000000" } }, fill: { fgColor: { rgb: "92CDDC" } } };
-          const styleSectionHeader = { font: { bold: true, color: { rgb: "000000" } }, fill: { fgColor: { rgb: "DAEEF3" } } };
-          const styleDataHeader = { font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 }, fill: { fgColor: { rgb: "215967" } } };
-
-          // --- Sheet 1: Instructions ---
-          // Use AoA for easy layout, then apply styles
-          const instructionRows = [
-              [{ v: "Dynamic Catalogue Template Instructions", s: styleMainHeader }], // Row 0
-              [{ v: "Based on your selected audits, fill out the 'Data' sheet.", s: styleSubHeader }], // Row 1
-              [], // Row 2 (Spacer)
-              [{ v: "General Formatting:", s: styleSectionHeader }], // Row 3
-              [{ v: "- Multiple Items (Bullets, Videos, ASIN lists): Use pipe '|' separator (e.g. Item 1 | Item 2)." }],
-              [{ v: "- Images/Links: Use full URLs." }],
-              [{ v: "- QueryASIN: The ASIN you want to check." }],
-              [], // Spacer
-              [{ v: "Selected Audits & Required Columns:", s: styleSectionHeader }] // Row 8
-          ];
-
-          selectedAudits.forEach(key => {
-              const cfg = AUDIT_TEMPLATE_CONFIG[key];
-              if (cfg) {
-                  const renamedCols = cfg.columns.map(c => COLUMN_RENAMES[c] || c).join(", ");
-                  instructionRows.push([{ v: `- ${cfg.name}: ${renamedCols}` }]);
+          // Also inject Custom Rules
+          customRules.forEach(rule => {
+              if (rule.isActive) {
+                  activeRules.push({ target: rule.name });
               }
           });
 
-          // Create Sheet
-          const wsInstr = XLSX.utils.aoa_to_sheet(instructionRows);
-
-          // Apply Column Widths
-          wsInstr['!cols'] = [{ wch: 100 }];
-
-          // Apply Styles Manually to Cells (if SheetJS CE ignores object in AoA)
-          // Note: If using Pro/Style-enabled build, object in AoA works. If not, this loop attempts to force it.
-          // Since we passed objects {v, s}, standard CE might just see [Object object].
-          // We need to verify if the library loaded supports this.
-          // If not, we fallback to standard text. But user asked for formatting.
-          // Assuming the library *can* handle style objects if we construct the sheet carefully.
-          // Actually, standard aoa_to_sheet might not unwrap {v,s} correctly if it expects primitives.
-          // Let's manually construct the cells for the styled ones to be safe.
-
-          // Helper to apply style to a specific cell address
-          const applyStyle = (ws, cellRef, style) => {
-              if (ws[cellRef]) ws[cellRef].s = style;
-          };
-
-          // Refactor: Just pass simple strings to aoa_to_sheet, then iterate to apply styles.
-          // This ensures content is readable even if styles fail.
-          const simpleRows = instructionRows.map(row => row.length ? (row[0].v || row[0]) : "");
-          const wsInstrSimple = XLSX.utils.aoa_to_sheet(simpleRows.map(r => [r]));
-          wsInstrSimple['!cols'] = [{ wch: 100 }];
-
-          // Apply Styles
-          applyStyle(wsInstrSimple, 'A1', styleMainHeader);
-          applyStyle(wsInstrSimple, 'A2', styleSubHeader);
-          applyStyle(wsInstrSimple, 'A4', styleSectionHeader);
-          applyStyle(wsInstrSimple, 'A9', styleSectionHeader); // "Selected Audits..." is at index 8 (row 9)
-
-          XLSX.utils.book_append_sheet(wb, wsInstrSimple, "Instructions");
-
-          // --- Sheet 2: Data ---
-          const wsData = XLSX.utils.aoa_to_sheet([headers]);
-
-          // Add 2 Example Rows
-          // Map back to internal keys (COLUMN_SAMPLES uses original names) or handle renamed
-          const getSample = (headerName) => {
-             // Reverse lookup or check direct sample
-             const originalKey = Object.keys(COLUMN_RENAMES).find(k => COLUMN_RENAMES[k] === headerName) || headerName;
-             return COLUMN_SAMPLES[originalKey];
-          };
-
-          const row1 = headers.map(h => {
-              return getSample(h) || "Sample Value";
-          });
-          const row2 = headers.map(h => {
-              const val = getSample(h);
-              // vary the ASIN slightly for row 2
-              if (h === "QueryASIN" && val && val.length > 5) return val.substring(0, val.length-1) + "X";
-              return val || "Sample Value";
-          });
-
-          XLSX.utils.sheet_add_aoa(wsData, [row1, row2], {origin: -1});
-
-          // Style Data Headers (Row 1)
-          headers.forEach((_, idx) => {
-              const cellRef = XLSX.utils.encode_cell({ c: idx, r: 0 });
-              applyStyle(wsData, cellRef, styleDataHeader);
-          });
-
-          // Auto-width for Data columns (approximate)
-          wsData['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 5, 15) }));
-
-          XLSX.utils.book_append_sheet(wb, wsData, "Data");
-          XLSX.writeFile(wb, "Dynamic_Audit_Template.xlsx");
+          // Hand off to the pipeline to generate the template
+          generateTemplate(activeRules);
       });
   }
 
