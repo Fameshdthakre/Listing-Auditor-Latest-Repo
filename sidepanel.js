@@ -3695,7 +3695,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tabMap.auditDelivery = createTab('Delivery_Audit', ['QueryASIN', 'Expected Max Days', 'Actual Delivery', 'Match Delivery']);
     }
 
-    const rows = results.map(tabData => {
+    const rows = await Promise.all(results.map(async tabData => {
         let rowStatus = "SUCCESS";
         if (tabData.error) {
             rowStatus = "ERROR";
@@ -3910,12 +3910,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 row["Expected Comparison ASINs"] = "N/A"; row["Match Comparison ASINs"] = "ERROR";
                 row["Expected Max Days"] = "N/A"; row["Actual Delivery"] = "ERROR"; row["Match Delivery"] = "ERROR";
             } else {
-                auditReport = runAuditComparison(
+                let visualData = null;
+                // Gather visual data if AI Visual Audit is enabled (mock conditions for Phase 2)
+                const isAiVisualEnabled = document.querySelector('.audit-checkbox[value="auditVisuals"]')?.checked;
+                if (isAiVisualEnabled) {
+                    visualData = {
+                        targetImagesBase64: tabData.comparisonData?.expected_images || [],
+                        liveImageUrls: tabData.data?.map(img => img.hiRes || img.large) || []
+                    };
+                }
+
+                auditReport = await runAuditComparison(
                     // Live Data (Attributes + Data array)
                     { ...tabData.attributes, data: tabData.data }, 
                     // Source Data (Comparison Data from Template)
                     tabData.comparisonData || {},
-                    customRules
+                    customRules,
+                    visualData
                 );
 
                 // Build Audit Summary
@@ -4099,7 +4110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Generate CSV Line from row object using header order
         const rowStr = finalHeaders.map(h => cleanField(row[h])).join(",");
         return { rowObj: row, csvLine: rowStr };
-    });
+    }));
 
     // --- Update Dynamic Headers for Tabs ---
     if (tabMap.variationFamily) {
