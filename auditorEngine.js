@@ -85,6 +85,43 @@ export const AUDIT_REQUIREMENTS = {
 
 // --- Helpers ---
 
+// Levenshtein Distance implementation
+const levenshteinDistance = (s1, s2) => {
+    if (s1.length === 0) return s2.length;
+    if (s2.length === 0) return s1.length;
+
+    let matrix = Array(s1.length + 1).fill(null).map(() => Array(s2.length + 1).fill(null));
+
+    for (let i = 0; i <= s1.length; i++) {
+        matrix[i][0] = i;
+    }
+    for (let j = 0; j <= s2.length; j++) {
+        matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= s1.length; i++) {
+        for (let j = 1; j <= s2.length; j++) {
+            let cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+            matrix[i][j] = Math.min(
+                matrix[i - 1][j] + 1, // deletion
+                matrix[i][j - 1] + 1, // insertion
+                matrix[i - 1][j - 1] + cost // substitution
+            );
+        }
+    }
+
+    return matrix[s1.length][s2.length];
+};
+
+// Calculate Similarity (0 to 1) based on Levenshtein Distance
+const calculateSimilarity = (s1, s2) => {
+    const maxLen = Math.max(s1.length, s2.length);
+    if (maxLen === 0) return 1.0;
+    const distance = levenshteinDistance(s1, s2);
+    return (maxLen - distance) / maxLen;
+};
+
+
 const normalizeText = (text) => text ? String(text).toLowerCase().replace(/\s+/g, ' ').trim() : "";
 
 // Smart Normalize: Removes symbols, punctuation, and stop words.
@@ -107,6 +144,48 @@ const smartNormalize = (text) => {
 
     // 4. Collapse Whitespace again after removal
     return str.replace(/\s+/g, ' ').trim();
+};
+
+const evaluateStringMatch = (expected, actual, options = {}) => {
+    const opts = {
+        tolerance: 0.95,
+        ignoreCase: true,
+        ignoreWhitespaceAndPunctuation: true, // true by default as it was the default previous behaviour in Title/Bullets matching
+        ...options
+    };
+
+    if (!expected && !actual) return { passed: true, score: 1.0 };
+    if (!expected || !actual) return { passed: false, score: 0.0 };
+
+    let s1 = String(expected);
+    let s2 = String(actual);
+
+    if (opts.ignoreCase) {
+        s1 = s1.toLowerCase();
+        s2 = s2.toLowerCase();
+    }
+
+    if (opts.ignoreWhitespaceAndPunctuation) {
+        // Aggressive Normalization
+        s1 = smartNormalize(s1);
+        s2 = smartNormalize(s2);
+    } else {
+        // Basic Hygiene
+        // Replace \r\n with \n and then replace \r with \n
+        s1 = s1.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        s2 = s2.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        // Trim leading and trailing spaces
+        s1 = s1.trim();
+        s2 = s2.trim();
+    }
+
+    const score = calculateSimilarity(s1, s2);
+    return {
+        passed: score >= opts.tolerance,
+        score: score,
+        normalizedExpected: s1,
+        normalizedActual: s2
+    };
 };
 
 export const parseList = (input) => {
@@ -349,22 +428,15 @@ const auditContent = (live, source) => {
     // 1. Title Audit (Smart Match)
     if (source.title) {
         checks++;
-        const sNorm = smartNormalize(source.title);
-        const lNorm = smartNormalize(live.metaTitle);
-        // Smart Match
-        const match = (sNorm === lNorm);
-        
-        // Detailed Logic: If not exact, maybe contains? 
-        // User requested "without symbols, conjunctions... main content must match" -> Equivalence check.
-        // If sNorm is very short, strict equality is safer. If long, equality implies full content match.
-        // We stick to equality of "main content" (smartNormalized strings).
+        const matchResult = evaluateStringMatch(source.title, live.metaTitle, { tolerance: 0.95 });
+        const match = matchResult.passed;
         
         res.details.push({ 
             label: "Title", 
             passed: match, 
             expected: source.title, 
             actual: live.metaTitle,
-            note: match ? "Smart Match" : "Content Mismatch" 
+            note: match ? `Match (Score: ${(matchResult.score*100).toFixed(1)}%)` : `Mismatch (Score: ${(matchResult.score*100).toFixed(1)}%)`
         });
         if (!match) res.passed = false;
     }
@@ -389,21 +461,29 @@ const auditContent = (live, source) => {
         let isReordered = false;
         let missing = [];
         let matchIndices = [];
+        let matchedLiveIndices = new Set();
 
         // Check each Source Bullet
         srcBullets.forEach((srcRaw, index) => {
-            const srcSmart = smartNormalize(srcRaw);
-            if (!srcSmart) return; // Skip empty bullets
+            if (!srcRaw || !srcRaw.trim()) return; // Skip empty bullets
 
-            // Find in Live
-            const foundIdx = liveBullets.findIndex(liveRaw => smartNormalize(liveRaw) === srcSmart);
-            
-            if (foundIdx !== -1) {
+            let bestMatchIdx = -1;
+            let bestScore = -1;
+
+            liveBullets.forEach((liveRaw, liveIdx) => {
+                if (matchedLiveIndices.has(liveIdx)) return; // Skip already matched
+
+                const matchResult = evaluateStringMatch(srcRaw, liveRaw, { tolerance: 0.95 });
+                if (matchResult.score > bestScore) {
+                    bestScore = matchResult.score;
+                    bestMatchIdx = liveIdx;
+                }
+            });
+
+            if (bestScore >= 0.95 && bestMatchIdx !== -1) {
                 foundCount++;
-                matchIndices.push(foundIdx);
-                // Optimization: remove found to handle duplicates? Or strict mapping?
-                // User said "each source bullet with each pdp bullets".
-                // We keep it simple: index mapping.
+                matchIndices.push(bestMatchIdx);
+                matchedLiveIndices.add(bestMatchIdx);
             } else {
                 missing.push(index + 1); // 1-based index for report
             }
@@ -460,13 +540,28 @@ const auditContent = (live, source) => {
         const sNorm = smartNormalize(source.description);
         const lNorm = smartNormalize(live.description);
         
-        // "Contains" Logic with Smart Norm
-        // If source is empty after norm, skip?
         let match = false;
-        if (sNorm) {
-            match = lNorm.includes(sNorm);
+        let note = "";
+        let scoreStr = "";
+
+        if (!sNorm) {
+             match = true; // If source was just punctuation, ignore
+             note = "Ignored (Empty Source)";
         } else {
-            match = true; // If source was just punctuation, ignore
+            // Step 1: Aggressive normalisation includes
+            if (lNorm.includes(sNorm)) {
+                match = true;
+                note = "Contains Match";
+            } else {
+                // Step 2: Compare lengths. If live is significantly longer, we cannot do a full fuzzy match
+                // without heavily penalizing for length. The requirement is to run a fuzzy match comparing
+                // expected against a substring of live of the same length (fuzzy contains), but for Phase 1
+                // we'll run full fuzzy match at 0.85 tolerance as a fallback.
+                const matchResult = evaluateStringMatch(source.description, live.description, { tolerance: 0.85 });
+                match = matchResult.passed;
+                note = match ? "Fuzzy Match (Tolerance: 0.85)" : "Fuzzy Mismatch";
+                scoreStr = ` (Score: ${(matchResult.score*100).toFixed(1)}%)`;
+            }
         }
 
         res.details.push({ 
@@ -474,7 +569,7 @@ const auditContent = (live, source) => {
             passed: match, 
             expected: "Content Match", 
             actual: match ? "Found" : "Missing",
-            note: match ? "Smart Match" : "Content Mismatch"
+            note: note + scoreStr
         });
         if (!match) res.passed = false;
     }
@@ -811,7 +906,13 @@ const auditVariation = (live, source) => {
         const exp = String(source.variationTheme).trim();
         const act = String(live.variationTheme).trim();
         const pass = (exp === act); // Exact match per request
-        res.details.push({ label: "Variation Theme", passed: pass, expected: source.variationTheme, actual: live.variationTheme });
+        res.details.push({
+            label: "Variation Theme",
+            passed: pass,
+            expected: source.variationTheme,
+            actual: live.variationTheme,
+            note: pass ? "Matched" : "Theme Violation"
+        });
         if (!pass) res.passed = false;
     }
 
@@ -827,7 +928,7 @@ const auditVariation = (live, source) => {
         res.details.push({ 
             label: "Family Integrity", 
             passed: passed, 
-            note: passed ? "All Present" : `Missing: ${missing.join(', ')}` 
+            note: passed ? "All Present" : `Broken/Orphaned Variation: ${missing.join(', ')}`
         });
         if (!passed) res.passed = false;
     }
