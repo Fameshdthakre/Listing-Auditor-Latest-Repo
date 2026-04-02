@@ -47,6 +47,8 @@
       SCRAPING_COLUMNS, AUDIT_COLUMNS, MASTER_COLUMNS, forcedFields, fieldConfig,
       AUDIT_TEMPLATE_CONFIG, COLUMN_SAMPLES, COLUMN_RENAMES
   } from './scraperEngine.js';
+
+  import { SheetManager } from './src/utils/SheetManager.js';
   
   import { runAuditComparison, AUDIT_REQUIREMENTS } from './auditorEngine.js';
   import { generateTemplate, validateUpload, fetchAiColumnMapping, sanitizeData } from './src/pipeline.js';
@@ -345,6 +347,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const catalogueLimitMsg = document.getElementById('catalogueLimitMsg');
   const clearCatalogueBtn = document.getElementById('clearCatalogueBtn');
   const auditCatalogueBtn = document.getElementById('auditCatalogueBtn');
+
+  // Sheets Sync UI Elements
+  const syncToSheetsToggle = document.getElementById('syncToSheetsToggle');
+  const sheetsSyncStatus = document.getElementById('sheetsSyncStatus');
+  const forceSyncBtn = document.getElementById('forceSyncBtn');
+  const linkSheetBtn = document.getElementById('linkSheetBtn');
+  const sheetManager = new SheetManager();
 
   // New Catalogue Controls
   const catalogueSelect = document.getElementById('catalogueSelect');
@@ -696,6 +705,9 @@ document.addEventListener('DOMContentLoaded', () => {
           // Trigger Auto-Disable Logic
           if (activeList) {
               updateAuditCheckboxStates(container, currentCatalogueId);
+              updateSheetsSyncUI(activeList);
+          } else {
+              updateSheetsSyncUI(null);
           }
 
           if (IS_LOGGED_IN) {
@@ -712,6 +724,183 @@ document.addEventListener('DOMContentLoaded', () => {
       currentCatalogueId = e.target.value;
       loadCatalogue();
   });
+
+  // --- Feature: Google Sheets Sync Logic ---
+  const updateSheetsSyncUI = (activeList) => {
+      if (!IS_LOGGED_IN || !activeList) {
+          syncToSheetsToggle.disabled = true;
+          syncToSheetsToggle.checked = false;
+          sheetsSyncStatus.textContent = "Pro Feature";
+          forceSyncBtn.style.display = 'none';
+          linkSheetBtn.style.display = 'none';
+          return;
+      }
+
+      syncToSheetsToggle.disabled = false;
+      const isLinked = !!activeList.linkedSheetId;
+      syncToSheetsToggle.checked = activeList.sheetsSyncEnabled || false;
+
+      if (activeList.sheetsSyncEnabled) {
+          if (isLinked) {
+              sheetsSyncStatus.textContent = `🟢 Linked: ${activeList.linkedSheetId.substring(0, 8)}...`;
+              sheetsSyncStatus.style.color = "var(--success)";
+              forceSyncBtn.style.display = 'block';
+              linkSheetBtn.style.display = 'none';
+          } else {
+              sheetsSyncStatus.textContent = "🟡 Pending Link";
+              sheetsSyncStatus.style.color = "var(--warning)";
+              forceSyncBtn.style.display = 'none';
+              linkSheetBtn.style.display = 'block';
+          }
+      } else {
+          sheetsSyncStatus.textContent = "Not Linked";
+          sheetsSyncStatus.style.color = "var(--text-muted)";
+          forceSyncBtn.style.display = 'none';
+          linkSheetBtn.style.display = 'none';
+      }
+  };
+
+  syncToSheetsToggle.addEventListener('change', (e) => {
+      const isEnabled = e.target.checked;
+      const key = getCatalogueContainerKey();
+      chrome.storage.local.get([key], (data) => {
+          const container = data[key];
+          if (container && container[currentCatalogueId]) {
+              container[currentCatalogueId].sheetsSyncEnabled = isEnabled;
+              chrome.storage.local.set({ [key]: container }, () => {
+                  updateSheetsSyncUI(container[currentCatalogueId]);
+                  if (isEnabled && !container[currentCatalogueId].linkedSheetId) {
+                      linkSheetBtn.click();
+                  }
+              });
+          }
+      });
+  });
+
+  linkSheetBtn.addEventListener('click', () => {
+      const sheetId = prompt("Enter Google Sheet ID (from the URL):");
+      if (!sheetId) {
+          syncToSheetsToggle.checked = false;
+          syncToSheetsToggle.dispatchEvent(new Event('change'));
+          return;
+      }
+
+      const key = getCatalogueContainerKey();
+      chrome.storage.local.get([key], (data) => {
+          const container = data[key];
+          if (container && container[currentCatalogueId]) {
+              container[currentCatalogueId].linkedSheetId = sheetId;
+              chrome.storage.local.set({ [key]: container }, () => {
+                  updateSheetsSyncUI(container[currentCatalogueId]);
+                  forceSyncBtn.click(); // Initial pull
+              });
+          }
+      });
+  });
+
+  forceSyncBtn.addEventListener('click', async () => {
+      const originalText = forceSyncBtn.textContent;
+      forceSyncBtn.textContent = "Syncing...";
+      forceSyncBtn.disabled = true;
+
+      try {
+          const key = getCatalogueContainerKey();
+          const data = await chrome.storage.local.get(key);
+          const container = data[key];
+          const activeList = container[currentCatalogueId];
+
+          if (!activeList || !activeList.linkedSheetId) throw new Error("No linked sheet");
+
+          // 1. Fetch from Sheets to Overwrite Local Data (Pipeline B requirement)
+          const sheetData = await sheetManager.fetchRows(activeList.linkedSheetId);
+
+          if (sheetData.rows.length > 0) {
+              // Basic Mapping logic mirroring the CSV import
+              // In production, this would use fetchAiColumnMapping to dynamically map.
+              const items = sheetData.rows.map(row => {
+                  const asin = row['QueryASIN'] || row['ASIN'] || row['asin'];
+                  const url = row['URL'] || row['url'];
+
+                  if (!asin) return null;
+
+                  return {
+                      asin: asin.toUpperCase(),
+                      url: url,
+                      auditType: 'type2',
+                      _sheetRowIndex: row._sheetRowIndex,
+                      expected: {
+                          title: row['SourceTitle'] || row['Title'] || "",
+                          bullets: row['SourceBullets'] || row['Bullets'] || "",
+                          description: row['SourceDescription'] || row['Description'] || "",
+                          brand: row['Brand'] || ""
+                      },
+                      comparisonData: {
+                          expected_title: row['SourceTitle'] || row['Title'],
+                          expected_bullets: row['SourceBullets'] || row['Bullets'],
+                          expected_description: row['SourceDescription'] || row['Description'],
+                          expected_images: row['Approved Images JSON'] || row['ApprovedImagesJSON']
+                          // Add other mappings as needed...
+                      }
+                  };
+              }).filter(Boolean);
+
+              // Overwrite Local
+              container[currentCatalogueId].items = processImportItems(items);
+              await chrome.storage.local.set({ [key]: container });
+              loadCatalogue();
+              alert(`Synced ${items.length} rows from Google Sheets.`);
+          } else {
+              alert("Google Sheet is empty or missing headers.");
+          }
+
+      } catch (err) {
+          console.error(err);
+          alert("Sync Failed: " + err.message);
+      } finally {
+          forceSyncBtn.textContent = originalText;
+          forceSyncBtn.disabled = false;
+      }
+  });
+
+  // Function to push updates back to Sheets (called after audit)
+  const syncResultsToSheet = async (results, catalogueId) => {
+      const key = getCatalogueContainerKey();
+      const data = await chrome.storage.local.get(key);
+      const container = data[key];
+      const activeList = container[catalogueId];
+
+      if (!activeList || !activeList.sheetsSyncEnabled || !activeList.linkedSheetId) return;
+
+      try {
+          const updates = [];
+          const sheetName = 'Data'; // Assuming standard name, or store during fetch
+
+          results.forEach(res => {
+              // Find matching item in catalogue to get its row index
+              const item = activeList.items.find(i => i.asin === (res.queryASIN || res.attributes?.mediaAsin));
+              if (item && item._sheetRowIndex) {
+                  // E.g., Update "Audit Status" column (assume Column Z for now)
+                  // In a robust implementation, fetchRows would map the column index
+                  let status = "PASS";
+                  if (res.error) status = "ERROR";
+                  else if (parseInt(res.attributes.lqs) < 70) status = "FAIL";
+
+                  updates.push({
+                      range: `'${sheetName}'!Z${item._sheetRowIndex}`,
+                      values: [[status]]
+                  });
+              }
+          });
+
+          if (updates.length > 0) {
+              await sheetManager.batchUpdateRows(activeList.linkedSheetId, updates);
+              console.log("Successfully pushed batch updates to Google Sheets.");
+          }
+
+      } catch (err) {
+          console.error("Failed to push audit results to Sheets:", err);
+      }
+  };
 
   // --- Auto-Disable Logic for Audit Checkboxes ---
   const updateAuditCheckboxStates = (container, catalogueId) => {
@@ -1759,7 +1948,11 @@ document.addEventListener('DOMContentLoaded', () => {
           });
 
           container[currentCatalogueId].items = list;
-          chrome.storage.local.set({ [key]: container }, loadCatalogue);
+          chrome.storage.local.set({ [key]: container }, () => {
+              loadCatalogue();
+              // Trigger sync to Google Sheets if linked
+              syncResultsToSheet(results, currentCatalogueId);
+          });
       });
   };
 

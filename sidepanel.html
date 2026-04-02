@@ -166,6 +166,18 @@
                  <button id="clearCatalogueBtn" style="background:transparent; border:none; color:var(--danger); font-size:10px; text-decoration:underline; cursor:pointer; padding:0;">Clear Items</button>
              </div>
         </div>
+
+        <div id="sheetsSyncContainer" style="background:rgba(34, 197, 94, 0.05); border:1px solid rgba(34, 197, 94, 0.2); padding:8px; border-radius:6px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+             <div style="display:flex; flex-direction:column; gap:2px;">
+                 <label style="font-size:11px; font-weight:600; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                     <input type="checkbox" id="syncToSheetsToggle">
+                     Sync to Google Sheets
+                 </label>
+                 <span id="sheetsSyncStatus" style="font-size:9px; color:var(--text-muted);">Not Linked</span>
+             </div>
+             <button id="forceSyncBtn" class="auth-btn" style="padding:4px 8px; font-size:10px; width:auto; display:none;">Force Sync</button>
+             <button id="linkSheetBtn" class="auth-btn" style="padding:4px 8px; font-size:10px; width:auto; background:var(--primary); color:#fff; display:none;">Link Sheet</button>
+        </div>
         
         <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 10px; font-weight: 700; padding: 4px 8px; color: var(--text-muted); border-bottom: 1px solid var(--border);">
             <span>ASIN / TITLE</span>

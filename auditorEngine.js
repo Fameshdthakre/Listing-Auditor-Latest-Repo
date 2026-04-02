@@ -928,6 +928,8 @@ const auditVariation = (live, source) => {
         res.details.push({ 
             label: "Family Integrity", 
             passed: passed, 
+            expected: source.variationFamily,
+            actual: live.variationFamily,
             note: passed ? "All Present" : `Broken/Orphaned Variation: ${missing.join(', ')}`
         });
         if (!passed) res.passed = false;
