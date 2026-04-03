@@ -209,6 +209,29 @@ button:hover::after {
 	transform: translateY(-1px);
 }
 
+/* --- High-Tech Hover Buttons --- */
+.hover-btn {
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hover-btn:hover {
+	background-color: rgba(99, 102, 241, 0.1) !important;
+	border-color: var(--primary) !important;
+	color: var(--primary) !important;
+	transform: translateY(-1px);
+	box-shadow: 0 4px 10px rgba(99, 102, 241, 0.2);
+}
+
+.hover-btn-danger {
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hover-btn-danger:hover {
+	background-color: rgba(239, 68, 68, 0.1) !important;
+	border-color: var(--danger) !important;
+	color: var(--danger) !important;
+	transform: translateY(-1px);
+	box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+}
+
 /* --- Restored & Enhanced Styles --- */
 
 .app-container {
