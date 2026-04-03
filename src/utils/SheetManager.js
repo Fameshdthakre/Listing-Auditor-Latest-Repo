@@ -351,6 +351,122 @@ export class SheetManager {
         }
     }
 
+    /**
+     * Appends rows to the first empty row of the given sheet.
+     * @param {string} inputId
+     * @param {Array<Array<any>>} dataArray
+     * @param {string} sheetName
+     */
+    async appendRows(inputId, dataArray, sheetName = 'Data') {
+        if (!dataArray || dataArray.length === 0) return;
+        if (this.provider === 'microsoft') {
+            return this.appendRowsMicrosoft(inputId, dataArray, sheetName);
+        }
+        return this.appendRowsGoogle(inputId, dataArray, sheetName);
+    }
+
+    async appendRowsGoogle(inputId, dataArray, sheetName) {
+        try {
+            const spreadsheetId = this.extractSpreadsheetId(inputId);
+            if (!spreadsheetId) throw new Error("Invalid Spreadsheet ID.");
+            const token = await this.getToken();
+
+            const payload = {
+                values: dataArray
+            };
+
+            // Using valueInputOption=USER_ENTERED correctly formats strings/numbers
+            const url = `${this.googleBaseUrl}/${spreadsheetId}/values/'${sheetName}'!A1:append?valueInputOption=USER_ENTERED`;
+
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(`Google append failed: ${errData.error?.message || res.status}`);
+            }
+
+            return await res.json();
+        } catch (error) {
+            console.error("SheetManager.appendRowsGoogle Error:", error);
+            throw error;
+        }
+    }
+
+    async appendRowsMicrosoft(inputId, dataArray, sheetName) {
+        try {
+            const fileId = this.extractSpreadsheetId(inputId);
+            if (!fileId) throw new Error("Invalid Microsoft Item ID.");
+            const token = await this.getToken();
+
+            // First, find the last row of the used range
+            const metaUrl = `${this.msBaseUrl}/${fileId}/workbook/worksheets('${sheetName}')/usedRange`;
+            const metaRes = await fetch(metaUrl, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!metaRes.ok) {
+                const err = await metaRes.json();
+                throw new Error(`Failed to get used range: ${err.error?.message || metaRes.status}`);
+            }
+
+            const metaData = await metaRes.json();
+            // If the sheet is empty, usedRange might be minimal, so we calculate the next row
+            // `rowCount` is 1 when empty (A1), but if values are empty array, we can use row 1.
+            let startRow = 1;
+
+            if (metaData.values && metaData.values.length > 0 && metaData.values[0].length > 0) {
+                const rowCount = metaData.rowCount || 0;
+                startRow = (metaData.rowIndex || 0) + rowCount + 1; // 1-based index for next empty row
+            }
+
+            // Generate end column letter (A, B, C...) based on data length
+            const colCount = dataArray[0].length;
+            const getColLetter = (col) => {
+                let temp, letter = '';
+                while (col > 0) {
+                    temp = (col - 1) % 26;
+                    letter = String.fromCharCode(temp + 65) + letter;
+                    col = (col - temp - 1) / 26;
+                }
+                return letter;
+            };
+            const endColLetter = getColLetter(colCount);
+
+            // Format range: e.g., A5:F10
+            const rangeStr = `A${startRow}:${endColLetter}${startRow + dataArray.length - 1}`;
+
+            const updateUrl = `${this.msBaseUrl}/${fileId}/workbook/worksheets('${sheetName}')/range(address='${rangeStr}')`;
+
+            const res = await fetch(updateUrl, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    values: dataArray
+                })
+            });
+
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(`Microsoft append failed: ${errData.error?.message || res.status}`);
+            }
+
+            return await res.json();
+        } catch (error) {
+            console.error("SheetManager.appendRowsMicrosoft Error:", error);
+            throw error;
+        }
+    }
+
     async batchUpdateRowsMicrosoft(inputId, updates) {
         try {
             const fileId = this.extractSpreadsheetId(inputId);

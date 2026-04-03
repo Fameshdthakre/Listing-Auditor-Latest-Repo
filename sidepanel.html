@@ -38,6 +38,11 @@
         </label>
     </div>
 
+    <!-- Active Tab Snapshot -->
+    <button id="captureActiveTabBtn" class="action-btn hover-btn" style="display:none; width: 100%; background:var(--primary); color:#fff; border:none; box-shadow: var(--shadow-sm); font-weight:700; margin-bottom:12px;">
+        📸 Capture Active Tab to Golden Record
+    </button>
+
     <!-- Bulk Section Header -->
     <button id="tabBulk" class="accordion-header expanded">
         <span class="header-title">📂 Bulk / CSV Import</span>
@@ -578,6 +583,10 @@
             </button>
         </div>
         
+        <button id="saveBulkToGoldenRecordBtn" class="action-btn hover-btn" style="display:none; width:100%; background:var(--success); color:#fff; border-color:var(--success); font-weight:700; margin-top:8px;">
+            ✨ Save Results as Golden Record
+        </button>
+
         <div id="clearSection" style="display:none;">
             <button id="clearBtn" class="action-btn" style="display:block; width:100%; background:var(--surface); border-color:var(--danger); color:var(--danger); margin-top:0;">Clear Output / Reset</button>
             <div id="clearConfirmMsg" style="display:none; text-align:center; margin-top:4px; font-size:11px; color:var(--danger);">
