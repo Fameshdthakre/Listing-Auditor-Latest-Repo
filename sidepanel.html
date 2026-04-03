@@ -814,23 +814,47 @@
       </div>
   </dialog>
 
-  <dialog id="whatsNewModal">
-      <div class="modal-header">
-          <span>What's New</span>
-          <button id="closeWhatsNewBtn" aria-label="Close modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+  <dialog id="whatsNewModal" style="background:var(--surface-solid); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-lg); width:90%; max-width:420px; padding:0; overflow:hidden;">
+      <div style="background: var(--primary-gradient); padding: 20px; text-align: center; color: white;">
+          <h2 style="margin:0; font-size:18px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:8px; color: white;">
+              🎉 Major Enterprise Upgrade <span style="font-size:10px; background:rgba(255,255,255,0.2); padding:2px 6px; border-radius:12px;">v1.1.3</span>
+          </h2>
+          <p style="margin:6px 0 0 0; font-size:12px; opacity:0.9;">We've supercharged the Listing Auditor with powerful new capabilities.</p>
       </div>
-      <div class="modal-body" style="padding: 16px; font-size: 13px; line-height: 1.5;">
-          <h3 style="margin-top:0; color:var(--primary);">🛡️ Auditor Mode Beta</h3>
-          <p>We've added a powerful new <strong>Auditor Mode</strong> to help you verify listing accuracy.</p>
-          <ul style="padding-left: 20px; color: var(--text-muted);">
-              <li>Compare live Amazon data against your "Golden Record" Catalogue.</li>
-              <li>Audit Images, Videos, Content, Variations, and more.</li>
-              <li>Export detailed discrepancy reports and detailed insights.</li>
-          </ul>
-          <p><strong>To start:</strong> Switch to "Auditor Mode" using the toggle at the top.</p>
+      <div class="modal-body" style="padding: 16px 20px; font-size: 12px; line-height: 1.5; color:var(--text-main); max-height:60vh; overflow-y:auto;">
+
+          <div style="margin-bottom:16px; background:var(--bg-input); border:1px solid var(--border); padding:12px; border-radius:8px;">
+              <div style="font-weight:700; color:var(--primary); font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                  🤖 AI Visual Auditing
+              </div>
+              <div style="color:var(--text-muted);">Go beyond text. Securely drag-and-drop your local "Golden Record" images, and our Multimodal AI will perform a deep visual comparison against live Amazon listings to catch missing badges, wrong packaging, or swapped images.</div>
+          </div>
+
+          <div style="margin-bottom:16px; background:var(--bg-input); border:1px solid var(--border); padding:12px; border-radius:8px;">
+              <div style="font-weight:700; color:var(--success); font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                  ⚡ 1-Click Auto-Remediation
+              </div>
+              <div style="color:var(--text-muted);">Found an error? Don't fix it manually. Click the new "Fix This" button next to failed audits to instantly generate a ready-to-upload Amazon Inventory Flat File (.xlsx) or a Seller Support prompt.</div>
+          </div>
+
+          <div style="margin-bottom:16px; background:var(--bg-input); border:1px solid var(--border); padding:12px; border-radius:8px;">
+              <div style="font-weight:700; color:#0ea5e9; font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                  📊 Two-Way Enterprise Database Sync
+              </div>
+              <div style="color:var(--text-muted);">Ditch the CSV uploads. You can now establish a live, two-way sync with both <strong>Google Sheets</strong> and <strong>Microsoft Excel Online</strong>. Read your catalogues and write audit results directly back to the cloud.</div>
+          </div>
+
+          <div style="margin-bottom:8px; background:var(--bg-input); border:1px solid var(--border); padding:12px; border-radius:8px;">
+              <div style="font-weight:700; color:var(--purple); font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                  🛡️ Smart Conditional Workspaces
+              </div>
+              <div style="color:var(--text-muted);">A cleaner, frictionless UI. Log in with Google or Microsoft, and your workspace will dynamically adapt to only show the integrations and databases relevant to your ecosystem.</div>
+          </div>
+
       </div>
-      <div class="modal-footer">
-          <button id="dismissWhatsNewBtn" class="auth-btn" style="background:var(--primary); color:#fff; width:auto; display:inline-flex;">Got it!</button>
+      <div class="modal-footer" style="background:var(--bg-header); padding:16px 20px; text-align:right; border-top:1px solid var(--border);">
+          <button id="dismissWhatsNewBtn" class="auth-btn hover-btn" style="background:var(--primary); color:#fff; width:100%; display:inline-flex; justify-content:center; padding:10px; font-size:13px; border-radius:8px;">Got it! Let's go</button>
+          <button id="closeWhatsNewBtn" style="display:none;"></button> <!-- Hidden for compat with existing js -->
       </div>
   </dialog>
 

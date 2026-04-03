@@ -4924,10 +4924,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const manifest = chrome.runtime.getManifest();
       const currentVersion = manifest.version;
 
-      chrome.storage.local.get(['last_seen_version'], (data) => {
+      chrome.storage.local.get(['hasSeenUpdateV2', 'last_seen_version'], (data) => {
+          const hasSeenV2 = data.hasSeenUpdateV2;
           const lastSeen = data.last_seen_version;
 
-          if (!lastSeen || lastSeen !== currentVersion) {
+          // Show modal if they haven't seen the V2 update specifically, or if it's a new version generally
+          if (!hasSeenV2 || (!lastSeen || lastSeen !== currentVersion)) {
               // Show Modal
               if (whatsNewModal) whatsNewModal.showModal();
           }
@@ -4937,7 +4939,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function closeWhatsNew() {
       if (whatsNewModal) whatsNewModal.close();
       const manifest = chrome.runtime.getManifest();
-      chrome.storage.local.set({ last_seen_version: manifest.version });
+      chrome.storage.local.set({
+          last_seen_version: manifest.version,
+          hasSeenUpdateV2: true
+      });
   };
 
   if (closeWhatsNewBtn) closeWhatsNewBtn.addEventListener('click', closeWhatsNew);
