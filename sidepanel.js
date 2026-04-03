@@ -889,6 +889,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (syncUserEmailDisplay) syncUserEmailDisplay.textContent = `Connected: ${session.email}`;
       if (sheetUrlInput) sheetUrlInput.placeholder = session.provider === 'google' ? 'Link Google Sheet URL' : 'Link Excel Online URL';
 
+      // Remove Sign Out button for Google Sync
+      if (syncLogoutBtn) {
+          syncLogoutBtn.style.display = session.provider === 'google' ? 'none' : 'block';
+      }
+
       if (!activeList) return; // Wait for catalogue to load
 
       syncToSheetsToggle.disabled = false;
