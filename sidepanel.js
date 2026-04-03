@@ -112,10 +112,36 @@ document.addEventListener('DOMContentLoaded', () => {
                   'Ignore' // Added option
               ];
 
-              catalogueImportStatus.textContent = "AI mapping columns...";
-              // Skip auto-mapping initially
+              catalogueImportStatus.textContent = "Please map columns.";
+
+              // Attempt deterministic perfect match against schema/display names first
               const initialMapping = {};
-              userHeaders.forEach(h => initialMapping[h] = 'Ignore');
+              userHeaders.forEach(h => {
+                  const normH = h.toLowerCase().trim();
+                  let match = 'Ignore';
+
+                  // 1. Check direct keys
+                  if (systemTargets.includes(h)) {
+                      match = h;
+                  }
+                  // 2. Check Display Names
+                  else {
+                      for (const key of systemTargets) {
+                          if (key === 'Ignore') continue;
+                          const dName = DISPLAY_NAMES[key] || key;
+                          if (dName.toLowerCase() === normH) {
+                              match = key;
+                              break;
+                          }
+                          // Also check against old template names for backward compatibility
+                          if (COLUMN_RENAMES && COLUMN_RENAMES[key] && COLUMN_RENAMES[key].toLowerCase() === normH) {
+                              match = key;
+                              break;
+                          }
+                      }
+                  }
+                  initialMapping[h] = match;
+              });
 
               // Pipeline Step C: Render UI for Confirmation
               renderMappingUI(rawData, userHeaders, initialMapping, systemTargets);
@@ -3841,7 +3867,11 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
       } else {
-          scanBtn.style.display = 'block';
+          if (MEGA_MODE === 'scraper') {
+              scanBtn.style.display = 'block';
+          } else {
+              scanBtn.style.display = 'none';
+          }
           stopBtn.style.display = 'none';
           progressContainer.style.display = 'none';
           
