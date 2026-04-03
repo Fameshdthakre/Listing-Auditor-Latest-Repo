@@ -134,17 +134,10 @@
             </button>
         </div>
 
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <div class="search-group">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <input type="text" id="globalCatalogSearch" placeholder="Search ASIN across all catalogs...">
-            </div>
-            <div id="catalogueLimitMsg" style="font-size:10px; color:var(--text-muted); margin-left: 8px;">Limit: 10 (Free)</div>
-        </div>
-
         <div style="display:flex; gap:6px; margin-bottom:12px; align-items:center;">
             <select id="catalogueSelect" style="flex:1;"></select>
             <button id="manageCatalogsBtn" title="Manage & Sort Catalogs" aria-label="Manage catalogs" style="padding:6px; width:auto; flex:none;">⚙️</button>
+            <div id="catalogueLimitMsg" style="font-size:10px; color:var(--text-muted); margin-left: 8px;">Limit: 10 (Free)</div>
         </div>
 
         <div style="margin-bottom:12px; padding:12px; border:1px dashed var(--border); border-radius:6px; background:var(--bg); text-align:center;" id="dragDropArea">
@@ -154,6 +147,13 @@
             </button>
             <input type="file" id="catalogueInput" accept=".xlsx" style="display:none;">
             <div id="catalogueImportStatus" style="font-size:10px; color:var(--text-muted); margin-top:4px;"></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div class="search-group" style="margin-bottom:0;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="globalCatalogSearch" placeholder="Search ASIN across all catalogs...">
+            </div>
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
@@ -193,7 +193,7 @@
              <div id="syncStateLoggedIn" style="display:none; flex-direction:column; gap:4px; margin-top:4px;">
                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--text-muted); margin-bottom:4px;">
                      <span id="syncUserEmailDisplay"></span>
-                     <button id="syncLogoutBtn" style="background:none; border:none; color:var(--danger); text-decoration:underline; cursor:pointer; font-size:10px; padding:0;">Sign Out</button>
+                     <button id="syncLogoutBtn" style="display:none; background:none; border:none; color:var(--danger); text-decoration:underline; cursor:pointer; font-size:10px; padding:0;">Sign Out</button>
                  </div>
 
                  <!-- Unlinked Sub-state -->
@@ -251,13 +251,23 @@
         </div>
 
         <div style="margin-bottom: 12px;">
-            <div style="font-size:11px; font-weight:600; margin-bottom:4px;">Local Target Images (Golden Record)</div>
+            <div style="font-size:11px; font-weight:600; margin-bottom:4px; display:flex; align-items:center;">
+                Local Target Images (Golden Record)
+                <span class="info-icon" style="margin-left:4px; font-size:12px;" data-tooltip="Name your images exactly as the ASIN.VARIANT_Name.ext (e.g., B08XXXXXXX.MAIN.jpg, B08XXXXXXX.PT01.jpg) to ensure accurate matching.">ⓘ</span>
+            </div>
             <div id="imageDragDropArea" style="border:1px dashed var(--primary); padding:16px; text-align:center; border-radius:6px; cursor:pointer; background:rgba(37,99,235,0.05); color:var(--text-muted); font-size:11px;">
                 Drag & Drop Images Here or Click to Upload
                 <input type="file" id="localImagesInput" accept="image/png, image/jpeg, image/webp" multiple style="display:none;">
             </div>
             <div id="localImagesPreview" style="display:flex; gap:4px; margin-top:8px; overflow-x:auto;"></div>
             <div id="localImagesStatus" style="font-size:9px; color:var(--text-muted); margin-top:4px;"></div>
+        </div>
+
+        <div style="margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+            <label style="font-size:11px; font-weight:600; display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--text-main);">
+                <input type="checkbox" id="deepInsightToggle" style="width:14px; height:14px;">
+                Enable Deep Insight (AI Analysis)
+            </label>
         </div>
 
         <button id="auditCatalogueBtn" style="width: 100%; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px;">
@@ -917,12 +927,16 @@
 
   <!-- Mapping Modal -->
   <dialog id="mappingModal" style="background:var(--surface-solid); color:var(--text-main); border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow-lg); width: 90%; max-width: 400px;">
-      <div class="modal-header">
-          <span>Map Columns</span>
-          <button id="closeMappingModalBtn" aria-label="Close modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+      <div class="modal-header" style="justify-content: space-between; display: flex; align-items: center;">
+          <span style="display:flex; align-items:center;">Map Columns</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button id="autoMapAiBtn" class="auth-btn hover-btn" style="background:var(--surface); color:var(--primary); border:1px solid var(--primary); padding:4px 8px; font-size:10px;">✨ Auto-Map with AI</button>
+            <button id="closeMappingModalBtn" aria-label="Close modal" style="flex:none; width:auto; background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer; padding:0;">&times;</button>
+          </div>
       </div>
       <div class="modal-body" style="padding: 16px; font-size: 12px; max-height: 60vh; overflow-y: auto;">
           <p style="margin-top:0; color:var(--text-muted);">Please confirm or adjust how your columns map to our system targets.</p>
+          <input type="text" id="mappingSearchInput" placeholder="Search target columns..." style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 12px; font-size: 11px; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">
           <div id="mappingList" style="display: flex; flex-direction: column; gap: 12px;">
               <!-- Dynamic rows injected here -->
           </div>
