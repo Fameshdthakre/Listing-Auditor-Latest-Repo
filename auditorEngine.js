@@ -7,7 +7,7 @@
  * @param {Object} sourceData - Data from the user's Catalogue/Template (expected values)
  * @return {Object} auditReport - Detailed breakdown of pass/fail for each criteria
  */
-export const auditVisuals = async (targetImagesBase64, liveImageUrls) => {
+export const auditVisuals = async (targetImagesBase64, liveImageUrls, deepInsight = false) => {
     try {
         const response = await fetch('https://us-central1-your-project.cloudfunctions.net/visualAuditCompare', {
             method: 'POST',
@@ -16,7 +16,8 @@ export const auditVisuals = async (targetImagesBase64, liveImageUrls) => {
             },
             body: JSON.stringify({
                 targetImages: targetImagesBase64,
-                liveImages: liveImageUrls
+                liveImages: liveImageUrls,
+                deepInsight: deepInsight
             })
         });
 
@@ -78,9 +79,63 @@ export const runAuditComparison = async (liveData, sourceData, customRules = [],
     // 11. Dynamic Custom Rules Audit
     report.results.customRules = auditCustomRules(live, source, customRules);
 
-    // 12. Visual Audit (Phase 2 AI Integration)
+    // 12. Visual Audit (Phase 2 AI Integration & 2-Step Deterministic Matching)
     if (visualData && visualData.targetImagesBase64 && visualData.liveImageUrls) {
-        const visualResult = await auditVisuals(visualData.targetImagesBase64, visualData.liveImageUrls);
+        const targetImages = visualData.targetImagesBase64;
+        const liveImagesUrls = visualData.liveImageUrls;
+
+        let allMatchedDeterministically = false;
+
+        // Step 1 (Deterministic): If targetImages are URLs (e.g. from catalogue parsing) and not base64 files
+        // and we are NOT using deep insight, we can check for strict URL matches.
+        if (!visualData.deepInsight) {
+            // targetImages could be a mix, or all URLs.
+            // If they are JSON parsed strings of variants {variant: 'MAIN', large: 'url'}
+            // or just pure URLs.
+
+            // Check if every target image strictly matches a live image URL
+            let parsedTargets = [];
+            try {
+                // If it's a string, try to parse
+                parsedTargets = (typeof targetImages === 'string') ? parseList(targetImages) : targetImages;
+            } catch(e) {
+                 parsedTargets = targetImages;
+            }
+
+            if (Array.isArray(parsedTargets) && parsedTargets.length > 0) {
+                 allMatchedDeterministically = parsedTargets.every(target => {
+                     // Check if target is Base64
+                     if (typeof target === 'string' && target.startsWith('data:image')) {
+                         return false; // Can't deterministic match base64
+                     }
+
+                     let targetUrlToMatch = null;
+                     if (typeof target === 'object' && target !== null) {
+                         targetUrlToMatch = target.large || target.hiRes || target.url;
+                     } else if (typeof target === 'string' && target.startsWith('http')) {
+                         targetUrlToMatch = target;
+                     }
+
+                     if (targetUrlToMatch) {
+                         return liveImagesUrls.includes(targetUrlToMatch);
+                     }
+                     return false;
+                 });
+            }
+        }
+
+        let visualResult = { passed: true };
+        let visualNote = "Exact URL match (AI Skipped)";
+
+        if (allMatchedDeterministically) {
+            // Step 1 Success: Skip AI call
+             visualResult = { passed: true, similarity: 1.0, details: "Matched deterministically by URL" };
+        } else {
+            // Step 2 (AI Fallback or Deep Insight active)
+            visualResult = await auditVisuals(targetImages, liveImagesUrls, visualData.deepInsight);
+            visualNote = visualResult.error ? `Error: ${visualResult.error}` : "AI Visual comparison complete";
+        }
+
         report.results.visuals = {
             status: 'completed',
             passed: visualResult.passed !== false,
@@ -88,7 +143,7 @@ export const runAuditComparison = async (liveData, sourceData, customRules = [],
                 {
                     label: "AI Visual Audit",
                     passed: visualResult.passed !== false,
-                    note: visualResult.error ? `Error: ${visualResult.error}` : "AI Visual comparison complete",
+                    note: visualNote,
                     analysis: visualResult
                 }
             ]

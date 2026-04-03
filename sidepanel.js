@@ -113,11 +113,12 @@ document.addEventListener('DOMContentLoaded', () => {
               ];
 
               catalogueImportStatus.textContent = "AI mapping columns...";
-              // Pipeline Step B: AI Auto-Mapping
-              const aiMapping = await fetchAiColumnMapping(userHeaders, systemTargets);
+              // Skip auto-mapping initially
+              const initialMapping = {};
+              userHeaders.forEach(h => initialMapping[h] = 'Ignore');
 
               // Pipeline Step C: Render UI for Confirmation
-              renderMappingUI(rawData, userHeaders, aiMapping, systemTargets);
+              renderMappingUI(rawData, userHeaders, initialMapping, systemTargets);
 
           } catch (err) {
               catalogueImportStatus.textContent = err.message;
@@ -126,19 +127,91 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   }
 
+  const DISPLAY_NAMES = {
+      'status': 'Status',
+      'lqs': 'Listing Quality Score (LQS)',
+      'lqsDetails': 'LQS Breakdown',
+      'marketplace': 'Marketplace',
+      'deliveryLocation': 'Delivery Location',
+      'queryASIN': 'Query ASIN',
+      'mediaAsin': 'Page ASIN',
+      'url': 'Page URL',
+      'brand': 'Brand Name',
+      'metaTitle': 'Meta Title (SEO / Product Name)',
+      'stockStatus': 'Stock Status',
+      'displayPrice': 'Display Price',
+      'basisPrice': 'Base Price (RRP)',
+      'IsBuyBoxOwner': 'Is Buy Box Owner',
+      'shipsFrom': 'Ships From',
+      'soldBy': 'Sold By',
+      'primeOrFastestDeliveryDate': 'Prime / Fastest Delivery Date',
+      'freeDeliveryDate': 'Free Delivery Date',
+      'paidDeliveryDate': 'Paid Delivery Date',
+      'aodTotalOfferCount': 'AOD Total Offer Count',
+      'AOD_amazon_price': 'AOD Amazon Price',
+      'AOD_amazon_basePrice': 'AOD Amazon Base Price',
+      'aodBasePrice': 'AOD Base Price',
+      'AOD_amazon_shipsFrom': 'AOD Amazon Ships From',
+      'AOD_amazon_soldBy': 'AOD Amazon Sold By',
+      'AOD_amazon_deliveryDate': 'AOD Amazon Delivery Date',
+      'categories': 'Categories',
+      'hasBullets': 'Has Bullet Points',
+      'bulletsCount': 'Bullet Points Count',
+      'bullets': 'Bullet Points Text',
+      'hasDescription': 'Has Product Description',
+      'description': 'Product Description Text',
+      'imgVariantCount': 'Image Variant Count',
+      'imgVariantDetails': 'Image Variant Details',
+      'hasVideo': 'Has Video',
+      'videoCount': 'Video Count',
+      'videos': 'Videos',
+      'hasAplus': 'Has A+ Content',
+      'aPlusImgs': 'A+ Content Images',
+      'aPlusCarouselImgs': 'A+ Carousel Images',
+      'hasBrandStory': 'Has Brand Story',
+      'brandStoryImgs': 'Brand Story Images',
+      'hasSizeChart': 'Has Size Chart',
+      'hasComparisonChart': 'Has Comparison Chart',
+      'presentASINinCompChart': 'Present ASIN in Comparison Chart',
+      'comparisonAsins': 'Comparison ASINs',
+      'parentAsin': 'Parent ASIN',
+      'variationExists': 'Has Variations',
+      'queryASIN_variation_theme': 'Query ASIN Variation Theme',
+      'variationTheme': 'Variation Theme',
+      'variationCount': 'Variation Count',
+      'variationFamily': 'Variation Child ASINs',
+      'variationFamilyAsinsMap': 'Variation Family ASINs Map',
+      'variationFamilyDetails': 'Variation Family Details',
+      'rating': 'Rating (Stars)',
+      'reviews': 'Review Count',
+      'bsr': 'Best Sellers Rank (BSR)'
+  };
+
   // Define renderMappingUI function
-  function renderMappingUI(rawData, userHeaders, aiMapping, systemTargets) {
+  function renderMappingUI(rawData, userHeaders, currentMapping, systemTargets) {
       const mappingModal = document.getElementById('mappingModal');
       const mappingList = document.getElementById('mappingList');
       const confirmMappingBtn = document.getElementById('confirmMappingBtn');
+      const autoMapAiBtn = document.getElementById('autoMapAiBtn');
+      const mappingSearchInput = document.getElementById('mappingSearchInput');
 
       mappingList.innerHTML = ''; // Clear previous
+
+      // Sort system targets for better UX
+      const sortedSystemTargets = [...systemTargets].sort((a, b) => {
+          if (a === 'Ignore') return -1;
+          if (b === 'Ignore') return 1;
+          const nameA = DISPLAY_NAMES[a] || a;
+          const nameB = DISPLAY_NAMES[b] || b;
+          return nameA.localeCompare(nameB);
+      });
 
       userHeaders.forEach(header => {
           const row = document.createElement('div');
           row.style.display = 'flex';
           row.style.flexDirection = 'column';
           row.style.gap = '4px';
+          row.className = 'mapping-row';
 
           const label = document.createElement('label');
           label.style.fontWeight = 'bold';
@@ -151,16 +224,33 @@ document.addEventListener('DOMContentLoaded', () => {
           select.style.borderRadius = '4px';
           select.style.border = '1px solid var(--border)';
 
-          systemTargets.forEach(target => {
+          // Add Ignore option first explicitly
+          const ignoreOption = document.createElement('option');
+          ignoreOption.value = 'Ignore';
+          ignoreOption.innerHTML = '🛑 Ignore';
+          select.appendChild(ignoreOption);
+
+          sortedSystemTargets.forEach(target => {
+              if (target === 'Ignore') return; // Already added
+
               const option = document.createElement('option');
               option.value = target;
-              option.textContent = target;
+
+              // Use Display Name if available, else raw key
+              let displayName = target;
+              if (DISPLAY_NAMES[target]) {
+                  displayName = DISPLAY_NAMES[target];
+              } else if (customRules.some(r => r.name === target)) {
+                  displayName = `[Custom] ${target}`;
+              }
+
+              option.textContent = displayName;
               select.appendChild(option);
           });
 
-          // Pre-select AI suggestion
-          if (aiMapping[header] && systemTargets.includes(aiMapping[header])) {
-              select.value = aiMapping[header];
+          // Pre-select AI suggestion or current mapping
+          if (currentMapping[header] && systemTargets.includes(currentMapping[header])) {
+              select.value = currentMapping[header];
           } else {
               select.value = 'Ignore';
           }
@@ -169,6 +259,48 @@ document.addEventListener('DOMContentLoaded', () => {
           row.appendChild(select);
           mappingList.appendChild(row);
       });
+
+      // Filter functionality
+      if (mappingSearchInput) {
+          // Remove old listener if re-rendering
+          const newSearchInput = mappingSearchInput.cloneNode(true);
+          mappingSearchInput.replaceWith(newSearchInput);
+
+          newSearchInput.addEventListener('input', (e) => {
+              const query = e.target.value.toLowerCase();
+              const rows = mappingList.querySelectorAll('.mapping-row');
+
+              rows.forEach(row => {
+                  const label = row.querySelector('label').textContent.toLowerCase();
+                  if (label.includes(query)) {
+                      row.style.display = 'flex';
+                  } else {
+                      row.style.display = 'none';
+                  }
+              });
+          });
+      }
+
+      // Auto-Map button functionality
+      if (autoMapAiBtn) {
+          const newAutoMapBtn = autoMapAiBtn.cloneNode(true);
+          autoMapAiBtn.replaceWith(newAutoMapBtn);
+
+          newAutoMapBtn.addEventListener('click', async () => {
+              newAutoMapBtn.textContent = "⏳ Mapping...";
+              newAutoMapBtn.disabled = true;
+              try {
+                  const aiMapping = await fetchAiColumnMapping(userHeaders, systemTargets);
+                  // Update current mapping and re-render
+                  renderMappingUI(rawData, userHeaders, aiMapping, systemTargets);
+              } catch(e) {
+                  alert("Auto-Map failed: " + e.message);
+              } finally {
+                  newAutoMapBtn.textContent = "✨ Auto-Map with AI";
+                  newAutoMapBtn.disabled = false;
+              }
+          });
+      }
 
       // Overwrite previous event listener if it exists to prevent double-firing
       confirmMappingBtn.replaceWith(confirmMappingBtn.cloneNode(true));
@@ -891,7 +1023,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Remove Sign Out button for Google Sync
       if (syncLogoutBtn) {
-          syncLogoutBtn.style.display = session.provider === 'google' ? 'none' : 'block';
+          syncLogoutBtn.style.display = 'none'; // Force hide for both providers
       }
 
       if (!activeList) return; // Wait for catalogue to load
@@ -2127,6 +2259,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const imageSourceRadios = document.querySelectorAll('input[name="imageAuditSource"]');
   const vcPortalWarning = document.getElementById('vcPortalWarning');
   const scPortalWarning = document.getElementById('scPortalWarning');
+  const imageDragDropAreaContainer = document.getElementById('imageDragDropArea')?.parentElement;
 
   // Ensure Hidden Initially
   if(vcPortalWarning) vcPortalWarning.style.display = 'none';
@@ -2138,11 +2271,14 @@ document.addEventListener('DOMContentLoaded', () => {
               // Reset both
               if(vcPortalWarning) vcPortalWarning.style.display = 'none';
               if(scPortalWarning) scPortalWarning.style.display = 'none';
+              if(imageDragDropAreaContainer) imageDragDropAreaContainer.style.display = 'block';
 
               if (e.target.value === 'vc') {
                   if(vcPortalWarning) vcPortalWarning.style.display = 'flex';
+                  if(imageDragDropAreaContainer) imageDragDropAreaContainer.style.display = 'none';
               } else if (e.target.value === 'sc') {
                   if(scPortalWarning) scPortalWarning.style.display = 'flex';
+                  if(imageDragDropAreaContainer) imageDragDropAreaContainer.style.display = 'none';
               }
           });
       });
@@ -3964,16 +4100,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        addIfActive('auditContent', ["Expected Title", "Match Title", "Expected Bullets", "Match Bullets", "Expected Description", "Match Description"]);
-        addIfActive('auditGrowth', ["Expected Rating", "Match Rating", "Expected Reviews", "Match Reviews"]);
-        addIfActive('auditImage', ["Expected Images", "Match Images"]);
-        addIfActive('auditVideo', ["Expected Video Count", "Match Video Count"]);
-        addIfActive('auditBrandStory', ["Expected Brand Story", "Match Brand Story"]);
-        addIfActive('auditAplus', ["Expected A+ Modules", "Match A+ Modules"]);
-        addIfActive('auditComparison', ["Expected Comparison ASINs", "Match Comparison ASINs"]);
-        addIfActive('auditVariation', ["Expected Variation Count", "Match Variation Count", "Expected Variation Theme", "Match Variation Theme"]);
-        addIfActive('auditBuyBox', ["Expected Seller", "Match Seller", "Expected Price", "Match Price"]);
-        addIfActive('auditDelivery', ["Expected Max Days", "Actual Delivery", "Match Delivery"]);
+        addIfActive('auditContent', ["Title Expected", "Title Actual", "Title Pass/Fail", "Bullets Expected", "Bullets Actual", "Bullets Pass/Fail", "Description Expected", "Description Actual", "Description Pass/Fail"]);
+        addIfActive('auditGrowth', ["Rating Expected", "Rating Actual", "Rating Pass/Fail", "Reviews Expected", "Reviews Actual", "Reviews Pass/Fail"]);
+        addIfActive('auditImage', ["Images Expected", "Images Actual", "Images Pass/Fail"]);
+        addIfActive('auditVideo', ["Video Count Expected", "Video Count Actual", "Video Count Pass/Fail"]);
+        addIfActive('auditBrandStory', ["Brand Story Expected", "Brand Story Actual", "Brand Story Pass/Fail"]);
+        addIfActive('auditAplus', ["A+ Modules Expected", "A+ Modules Actual", "A+ Modules Pass/Fail"]);
+        addIfActive('auditComparison', ["Comparison ASINs Expected", "Comparison ASINs Actual", "Comparison ASINs Pass/Fail"]);
+        addIfActive('auditVariation', ["Variation Count Expected", "Variation Count Actual", "Variation Count Pass/Fail", "Variation Theme Expected", "Variation Theme Actual", "Variation Theme Pass/Fail"]);
+        addIfActive('auditBuyBox', ["Seller Expected", "Seller Actual", "Seller Pass/Fail", "Price Expected", "Price Actual", "Price Pass/Fail"]);
+        addIfActive('auditDelivery', ["Max Days Expected", "Actual Delivery", "Delivery Pass/Fail"]);
         addIfActive('auditVisuals', ["Visual Audit Status", "Visual Note"]);
 
     } else {
@@ -4245,10 +4381,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 let visualData = null;
                 // Gather visual data if AI Visual Audit is enabled (mock conditions for Phase 2)
                 const isAiVisualEnabled = document.querySelector('.audit-checkbox[value="auditVisuals"]')?.checked;
+                const isDeepInsightEnabled = document.getElementById('deepInsightToggle')?.checked || false;
+
                 if (isAiVisualEnabled) {
                     visualData = {
                         targetImagesBase64: uploadedTargetImagesBase64.length > 0 ? uploadedTargetImagesBase64 : (tabData.comparisonData?.expected_images || []),
-                        liveImageUrls: tabData.data?.map(img => img.hiRes || img.large) || []
+                        liveImageUrls: tabData.data?.map(img => img.hiRes || img.large) || [],
+                        deepInsight: isDeepInsightEnabled
                     };
                 }
 
@@ -4281,7 +4420,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Map Report Results to Row Columns
                 // Helper to set row values from audit detail
                 const setRow = (label, detail) => {
-                    row[`Expected ${label}`] = detail ? (detail.expected || "N/A") : "N/A";
+                    const prefix = label;
+                    row[`${prefix} Expected`] = detail ? (detail.expected || "N/A") : "N/A";
+                    row[`${prefix} Actual`] = detail ? (detail.actual || "N/A") : "N/A";
+
                     if (detail) {
                         if (detail.passed) {
                              // Use specific note if available (e.g., "Smart Match", "Reordered")
@@ -4289,58 +4431,61 @@ document.addEventListener('DOMContentLoaded', () => {
                              if (note && note !== "Matched") {
                                  // Clean up "Passed (Reordered)" -> "Reordered" if needed
                                  const cleanNote = note.replace("Passed (Reordered)", "Reordered");
-                                 row[`Match ${label}`] = `TRUE (${cleanNote})`;
+                                 row[`${prefix} Pass/Fail`] = `PASS (${cleanNote})`;
                              } else {
-                                 row[`Match ${label}`] = "TRUE";
+                                 row[`${prefix} Pass/Fail`] = "PASS";
                              }
                         } else {
                              // Failure with reason
                              const note = detail.note;
-                             row[`Match ${label}`] = note ? `FALSE (${note})` : "FALSE";
+                             row[`${prefix} Pass/Fail`] = note ? `FAIL (${note})` : "FAIL";
                         }
                     } else {
-                        row[`Match ${label}`] = "N/A";
+                        row[`${prefix} Pass/Fail`] = "N/A";
                     }
                 };
 
                 const r = auditReport.results;
 
-                setRow("Title", r.content?.details.find(d => d.label === "Title"));
-                setRow("Bullets", r.content?.details.find(d => d.label === "Bullets"));
-                setRow("Description", r.content?.details.find(d => d.label === "Description"));
+                setRow("Title", r.content?.details?.find(d => d.label === "Title"));
+                setRow("Bullets", r.content?.details?.find(d => d.label === "Bullets"));
+                setRow("Description", r.content?.details?.find(d => d.label === "Description"));
                 
-                setRow("Rating", r.growth?.details.find(d => d.label === "Rating"));
-                setRow("Reviews", r.growth?.details.find(d => d.label === "Reviews"));
+                setRow("Rating", r.growth?.details?.find(d => d.label === "Rating"));
+                setRow("Reviews", r.growth?.details?.find(d => d.label === "Reviews"));
 
                 // Images: Aggregate or specific? Sidepanel logic was 'list'. Engine returns details per image.
                 // Simplified: If any fail, fail. Engine sets category passed=false.
-                // We use the category pass/fail for "Match Images" if precise breakdown not in column.
-                // But user column is "Match Images".
-                row["Expected Images"] = tabData.comparisonData?.expected_images || "N/A";
-                row["Match Images"] = r.images?.passed ? "TRUE" : "FALSE";
+                // We use the category pass/fail for "Images Pass/Fail" if precise breakdown not in column.
+                row["Images Expected"] = tabData.comparisonData?.expected_images || "N/A";
+                row["Images Actual"] = "N/A"; // Flattening images array might be too long, leave N/A or set to length
+                row["Images Pass/Fail"] = r.images?.passed ? "PASS" : "FAIL";
 
-                setRow("Video Count", r.video?.details.find(d => d.label === "Video Count"));
+                setRow("Video Count", r.video?.details?.find(d => d.label === "Video Count"));
                 
-                row["Expected Brand Story"] = tabData.comparisonData?.expected_brand_story || "N/A";
-                row["Match Brand Story"] = r.brandStory?.passed ? "TRUE" : "FALSE"; // Logic simplified in Engine
+                row["Brand Story Expected"] = tabData.comparisonData?.expected_brand_story || "N/A";
+                row["Brand Story Actual"] = tabData.attributes.hasBrandStory || "N/A";
+                row["Brand Story Pass/Fail"] = r.brandStory?.passed ? "PASS" : "FAIL"; // Logic simplified in Engine
 
-                row["Expected A+ Modules"] = tabData.comparisonData?.expected_aplus || "N/A";
-                row["Match A+ Modules"] = r.aplus?.passed ? "TRUE" : "FALSE";
+                row["A+ Modules Expected"] = tabData.comparisonData?.expected_aplus || "N/A";
+                row["A+ Modules Actual"] = tabData.attributes.hasAplus || "N/A";
+                row["A+ Modules Pass/Fail"] = r.aplus?.passed ? "PASS" : "FAIL";
 
                 // Comparison ASINs
-                row["Expected Comparison ASINs"] = tabData.comparisonData?.expected_comparison || "N/A";
-                row["Match Comparison ASINs"] = r.comparison?.passed ? "TRUE" : "FALSE";
+                row["Comparison ASINs Expected"] = tabData.comparisonData?.expected_comparison || "N/A";
+                row["Comparison ASINs Actual"] = tabData.attributes.comparisonAsins ? tabData.attributes.comparisonAsins.join(' | ') : "N/A";
+                row["Comparison ASINs Pass/Fail"] = r.comparison?.passed ? "PASS" : "FAIL";
 
-                setRow("Variation Count", r.variation?.details.find(d => d.label === "Variation Count"));
-                setRow("Variation Theme", r.variation?.details.find(d => d.label === "Variation Theme"));
+                setRow("Variation Count", r.variation?.details?.find(d => d.label === "Variation Count"));
+                setRow("Variation Theme", r.variation?.details?.find(d => d.label === "Variation Theme"));
                 
-                setRow("Seller", r.buybox?.details.find(d => d.label === "Sold By")); // Map "Seller" col to SoldBy check
-                setRow("Price", r.buybox?.details.find(d => d.label === "Price"));
+                setRow("Seller", r.buybox?.details?.find(d => d.label === "Sold By")); // Map "Seller" col to SoldBy check
+                setRow("Price", r.buybox?.details?.find(d => d.label === "Price"));
 
                 // Delivery
-                row["Expected Max Days"] = tabData.comparisonData?.expected_delivery_days || "N/A";
+                row["Max Days Expected"] = tabData.comparisonData?.expected_delivery_days || "N/A";
                 row["Actual Delivery"] = tabData.attributes.primeOrFastestDeliveryDate || tabData.attributes.freeDeliveryDate || "N/A";
-                row["Match Delivery"] = (tabData.comparisonData?.expected_delivery_days) ? "MANUAL" : "N/A";
+                row["Delivery Pass/Fail"] = r.delivery?.passed ? "PASS" : "FAIL";
 
                 // Visuals
                 const visualDetail = r.visuals?.details?.[0];
@@ -4364,9 +4509,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 tabMap.auditContent.rows.push([
                     queryAsin, 
-                    comp.expected_title || 'N/A', pdpTitle, row['Match Title'], 
-                    comp.expected_bullets || 'N/A', pdpBullets, row['Match Bullets'], missingBullets, extraBullets, 
-                    comp.expected_description || 'N/A', pdpDesc, row['Match Description']
+                    comp.expected_title || 'N/A', pdpTitle, row['Title Pass/Fail'],
+                    comp.expected_bullets || 'N/A', pdpBullets, row['Bullets Pass/Fail'], missingBullets, extraBullets,
+                    comp.expected_description || 'N/A', pdpDesc, row['Description Pass/Fail']
                 ]);
             }
 
@@ -4375,8 +4520,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const pdpReviews = tabData.attributes ? (tabData.attributes.reviews || '0') : '0';
                 tabMap.auditGrowth.rows.push([
                     queryAsin, 
-                    comp.expected_rating || 'N/A', pdpRating, row['Match Rating'], 
-                    comp.expected_reviews || 'N/A', pdpReviews, row['Match Reviews']
+                    comp.expected_rating || 'N/A', pdpRating, row['Rating Pass/Fail'],
+                    comp.expected_reviews || 'N/A', pdpReviews, row['Reviews Pass/Fail']
                 ]);
             }
 
@@ -4414,12 +4559,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 ]);
             }
 
-            if (tabMap.auditBrandStory) tabMap.auditBrandStory.rows.push([queryAsin, comp.expected_brand_story || 'N/A', row['Match Brand Story']]);
-            if (tabMap.auditAplus) tabMap.auditAplus.rows.push([queryAsin, comp.expected_aplus || 'N/A', row['Match A+ Modules']]);
-            if (tabMap.auditComparison) tabMap.auditComparison.rows.push([queryAsin, comp.expected_comparison || 'N/A', row['Match Comparison ASINs']]);
-            if (tabMap.auditVariation) tabMap.auditVariation.rows.push([queryAsin, comp.expected_variation_count || 'N/A', row['Match Variation Count'], comp.expected_variation_theme || 'N/A', row['Match Variation Theme']]);
-            if (tabMap.auditBuyBox) tabMap.auditBuyBox.rows.push([queryAsin, comp.expected_price || 'N/A', row['Match Price'], comp.expected_seller || 'N/A', row['Match Seller']]);
-            if (tabMap.auditDelivery) tabMap.auditDelivery.rows.push([queryAsin, comp.expected_delivery_days || 'N/A', row['Actual Delivery'], row['Match Delivery']]);
+            if (tabMap.auditBrandStory) tabMap.auditBrandStory.rows.push([queryAsin, comp.expected_brand_story || 'N/A', row['Brand Story Pass/Fail']]);
+            if (tabMap.auditAplus) tabMap.auditAplus.rows.push([queryAsin, comp.expected_aplus || 'N/A', row['A+ Modules Pass/Fail']]);
+            if (tabMap.auditComparison) tabMap.auditComparison.rows.push([queryAsin, comp.expected_comparison || 'N/A', row['Comparison ASINs Pass/Fail']]);
+            if (tabMap.auditVariation) tabMap.auditVariation.rows.push([queryAsin, comp.expected_variation_count || 'N/A', row['Variation Count Pass/Fail'], comp.expected_variation_theme || 'N/A', row['Variation Theme Pass/Fail']]);
+            if (tabMap.auditBuyBox) tabMap.auditBuyBox.rows.push([queryAsin, comp.expected_price || 'N/A', row['Price Pass/Fail'], comp.expected_seller || 'N/A', row['Seller Pass/Fail']]);
+            if (tabMap.auditDelivery) tabMap.auditDelivery.rows.push([queryAsin, comp.expected_delivery_days || 'N/A', row['Actual Delivery'], row['Delivery Pass/Fail']]);
             if (tabMap.auditVisuals) {
                 const visualDetail = auditReport ? auditReport.results.visuals?.details?.[0] : null;
                 tabMap.auditVisuals.rows.push([
