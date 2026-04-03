@@ -63,6 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const pushSheetBtn = document.getElementById('pushSheetBtn'); 
   const pushExcelBtn = document.getElementById('pushExcelBtn');
   const previewBtn = document.getElementById('previewBtn'); 
+  const captureActiveTabBtn = document.getElementById('captureActiveTabBtn');
+  const saveBulkToGoldenRecordBtn = document.getElementById('saveBulkToGoldenRecordBtn');
   const resultsPlaceholder = document.getElementById('resultsPlaceholder');
   const statusDiv = document.getElementById('status');
   const progressCountDiv = document.getElementById('progressCount'); 
@@ -1105,6 +1107,199 @@ document.addEventListener('DOMContentLoaded', () => {
 
           sheetsUnlinkedState.style.display = 'none';
           sheetsLinkedState.style.display = 'none';
+      }
+
+      checkActiveTabForSnapshot();
+  };
+
+  const checkActiveTabForSnapshot = async () => {
+      if (!captureActiveTabBtn) return;
+      const key = getCatalogueContainerKey();
+      const data = await chrome.storage.local.get(key);
+      const container = data[key] || {};
+      const activeList = container[currentCatalogueId];
+
+      // Needs to be logged in and have a linked sheet
+      if (!IS_LOGGED_IN || !activeList || !activeList.sheetsSyncEnabled || !activeList.linkedSheetId) {
+          captureActiveTabBtn.style.display = 'none';
+          return;
+      }
+
+      // Only check in auditor mode to match requirement context (Golden Record)
+      if (MEGA_MODE !== 'auditor') {
+          captureActiveTabBtn.style.display = 'none';
+          return;
+      }
+
+      // Check current active tab
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab && tab.url && (tab.url.includes('/dp/') || tab.url.includes('/gp/product/') || tab.url.includes('/asin/'))) {
+          captureActiveTabBtn.style.display = 'block';
+      } else {
+          captureActiveTabBtn.style.display = 'none';
+      }
+  };
+
+  // Call it on tab updates
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+      if (changeInfo.status === 'complete' && tab.active) {
+          checkActiveTabForSnapshot();
+      }
+  });
+  chrome.tabs.onActivated.addListener(() => {
+      checkActiveTabForSnapshot();
+  });
+
+  if (captureActiveTabBtn) {
+      captureActiveTabBtn.addEventListener('click', async () => {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (!tab || !tab.url) return;
+
+          captureActiveTabBtn.textContent = '📸 Capturing...';
+          captureActiveTabBtn.disabled = true;
+
+          try {
+              // Get current defaults for scraping if needed
+              let targetLang = document.querySelector('input[name="langPref"]:checked')?.value || 'english';
+              const settings = {
+                  disableImages: false,
+                  scrapeAOD: false,
+                  domainZipMap: {},
+                  batchMode: 'random',
+                  batchSize: 5,
+                  batchWait: 15,
+                  zipcode: ""
+              };
+
+              // Run a hidden scan on this single URL
+              chrome.runtime.sendMessage({
+                  action: 'START_SCAN',
+                  payload: {
+                      urls: [tab.url],
+                      mode: 'snapshot', // Custom mode to avoid polluting main UI
+                      settings,
+                      targetWindowId: tab.windowId
+                  }
+              });
+
+          } catch (e) {
+              console.error(e);
+              captureActiveTabBtn.textContent = '📸 Capture Active Tab to Golden Record';
+              captureActiveTabBtn.disabled = false;
+              alert('Capture failed: ' + e.message);
+          }
+      });
+  }
+
+  // Listen for Snapshot completion
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.action === 'SCAN_COMPLETE' && request.mode === 'snapshot') {
+          handleSnapshotComplete(request.results);
+      }
+  });
+
+  const handleSnapshotComplete = async (results) => {
+      if (captureActiveTabBtn) {
+          captureActiveTabBtn.textContent = '📸 Capture Active Tab to Golden Record';
+          captureActiveTabBtn.disabled = false;
+      }
+
+      if (!results || results.length === 0 || results[0].error) {
+          alert('Snapshot failed: ' + (results?.[0]?.error || 'Unknown error'));
+          return;
+      }
+
+      const item = results[0];
+      const attributes = item.attributes || {};
+
+      // Map to Golden Record format based on systemTargets logic
+      const mappedRow = {
+          'queryASIN': attributes.mediaAsin || item.queryASIN || item.id,
+          'item_name': attributes.metaTitle || '',
+          'brand': attributes.brand || '',
+          'product_description': attributes.description || '',
+          'bullet_point': attributes.bullets || '',
+          'list_price': attributes.displayPrice || '',
+          'rating': attributes.rating || '',
+          'reviews': attributes.reviews || '',
+          'best_sellers_rank': attributes.bsr || '',
+          'aplus_image_modules': attributes.hasAplus === 'YES' ? 'https://dummy-preview-link.com' : '', // We store links or generic
+          'brand_story_images': attributes.hasBrandStory === 'YES' ? 'https://dummy-preview-link.com' : '',
+          'variation_family_count': attributes.variationCount || '',
+          'variation_theme': attributes.variationTheme || '',
+          'variation_family': attributes.variationFamily ? (Array.isArray(attributes.variationFamily) ? JSON.stringify(attributes.variationFamily) : attributes.variationFamily) : '',
+          'parent_asin': attributes.parentAsin || '',
+          'sold_by': attributes.soldBy || '',
+          'ships_from': attributes.shipsFrom || '',
+          'prime_fastest_delivery_date': attributes.primeOrFastestDeliveryDate || '',
+          'comparison_asins': attributes.comparisonAsins ? (Array.isArray(attributes.comparisonAsins) ? JSON.stringify(attributes.comparisonAsins) : attributes.comparisonAsins) : '',
+          // Images: The Golden Record expects a JSON array of image objects
+          'product_image_details': attributes.imgVariantDetails ? JSON.stringify(attributes.imgVariantDetails) : ''
+      };
+
+      const key = getCatalogueContainerKey();
+      const data = await chrome.storage.local.get(key);
+      const container = data[key] || {};
+      const activeList = container[currentCatalogueId];
+
+      if (!activeList || !activeList.linkedSheetId) {
+          alert("No linked sheet found to append the snapshot.");
+          return;
+      }
+
+      try {
+          // Fetch existing headers to map the data correctly
+          const sheetData = await sheetManager.fetchRows(activeList.linkedSheetId);
+          let headers = sheetData.headers;
+          if (!headers || headers.length === 0) {
+             // Fallback default headers if empty
+             headers = ["QueryASIN", "SourceTitle", "Brand", "SourceBullets", "SourceDescription", "ReferenceRating", "ReferenceReviews", "ReferenceBSR", "ApprovedImagesJSON", "ApprovedBrandStoryPreviewLink", "ApprovedA+ModulePreviewLink", "ApprovedComparisonASINs", "ApprovedVariationCount", "ApprovedVariationTheme", "ApprovedVariationFamily", "ParentASIN", "ApprovedPrice", "ApprovedShipsFrom", "ApprovedSoldBy", "ExpectedDeliveryDays"];
+          }
+
+          // Map to sheet headers
+          // Note: using COLUMN_RENAMES backwards
+          const getMappedVal = (header) => {
+              const hLow = header.toLowerCase().replace(/['" ]+/g, '');
+
+              if (hLow.includes('title')) return mappedRow['item_name'];
+              if (hLow.includes('bullet')) return mappedRow['bullet_point'];
+              if (hLow.includes('desc')) return mappedRow['product_description'];
+              if (hLow.includes('brand') && !hLow.includes('story')) return mappedRow['brand'];
+              if (hLow.includes('asin') && !hLow.includes('parent') && !hLow.includes('comparison')) return mappedRow['queryASIN'];
+              if (hLow.includes('rating')) return mappedRow['rating'];
+              if (hLow.includes('review')) return mappedRow['reviews'];
+              if (hLow.includes('bsr')) return mappedRow['best_sellers_rank'];
+              if (hLow.includes('image')) return mappedRow['product_image_details'];
+              if (hLow.includes('story')) return mappedRow['brand_story_images'];
+              if (hLow.includes('plus')) return mappedRow['aplus_image_modules'];
+              if (hLow.includes('comparison')) return mappedRow['comparison_asins'];
+              if (hLow.includes('count') && hLow.includes('variation')) return mappedRow['variation_family_count'];
+              if (hLow.includes('theme')) return mappedRow['variation_theme'];
+              if (hLow.includes('family')) return mappedRow['variation_family'];
+              if (hLow.includes('parent')) return mappedRow['parent_asin'];
+              if (hLow.includes('price')) return mappedRow['list_price'];
+              if (hLow.includes('sold')) return mappedRow['sold_by'];
+              if (hLow.includes('ship')) return mappedRow['ships_from'];
+              if (hLow.includes('deliver') || hLow.includes('day') || hLow.includes('time')) return mappedRow['prime_fastest_delivery_date'];
+
+              return "";
+          };
+
+          const rowArray = headers.map(h => getMappedVal(h));
+
+          await sheetManager.appendRows(activeList.linkedSheetId, [rowArray]);
+
+          statusDiv.textContent = `✅ ASIN ${mappedRow['queryASIN']} added to Golden Record!`;
+          statusDiv.style.color = "var(--success)";
+          statusDiv.style.display = "block";
+
+          // Trigger a sync pull to update the UI
+          forceSyncBtn.click();
+
+          setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
+
+      } catch (err) {
+          alert('Failed to append to sheet: ' + err.message);
       }
   };
 
@@ -3883,6 +4078,20 @@ document.addEventListener('DOMContentLoaded', () => {
               clearSection.style.display = 'block';
               resultsPlaceholder.style.display = 'none'; 
 
+              // Show Save to Golden Record button if applicable
+              if (saveBulkToGoldenRecordBtn) {
+                  // We only show it in Scraper mode when there's an active linked sheet
+                  chrome.storage.local.get([getCatalogueContainerKey()], (d) => {
+                      const c = d[getCatalogueContainerKey()] || {};
+                      const aList = c[currentCatalogueId];
+                      if (MEGA_MODE === 'scraper' && IS_LOGGED_IN && aList && aList.linkedSheetId) {
+                          saveBulkToGoldenRecordBtn.style.display = 'block';
+                      } else {
+                          saveBulkToGoldenRecordBtn.style.display = 'none';
+                      }
+                  });
+              }
+
               // Check for errors to show/hide the error download button
               const hasErrors = results.some(r => r.error);
               if (hasErrors) {
@@ -3915,6 +4124,7 @@ document.addEventListener('DOMContentLoaded', () => {
               downloadXlsxBtn.style.display = 'none';
               pushSheetBtn.style.display = 'none';
               pushExcelBtn.style.display = 'none';
+              if (saveBulkToGoldenRecordBtn) saveBulkToGoldenRecordBtn.style.display = 'none';
               downloadErrorsBtn.style.display = 'none';
               clearSection.style.display = 'none';
               resultsPlaceholder.style.display = 'block'; 
@@ -4992,6 +5202,111 @@ document.addEventListener('DOMContentLoaded', () => {
           uploadToOneDrive(token);
       });
   });
+
+  if (saveBulkToGoldenRecordBtn) {
+      saveBulkToGoldenRecordBtn.addEventListener('click', async () => {
+          if (!IS_LOGGED_IN) return;
+
+          saveBulkToGoldenRecordBtn.textContent = '⏳ Saving...';
+          saveBulkToGoldenRecordBtn.disabled = true;
+
+          try {
+              const stateKey = 'scraperState';
+              const data = await chrome.storage.local.get(stateKey);
+              const results = data[stateKey] ? data[stateKey].results : [];
+
+              if (!results || results.length === 0) {
+                  throw new Error("No results found to save.");
+              }
+
+              const key = getCatalogueContainerKey();
+              const catData = await chrome.storage.local.get(key);
+              const container = catData[key] || {};
+              const activeList = container[currentCatalogueId];
+
+              if (!activeList || !activeList.linkedSheetId) {
+                  throw new Error("No active linked sheet to save to.");
+              }
+
+              // Fetch existing headers to map the data correctly
+              const sheetData = await sheetManager.fetchRows(activeList.linkedSheetId);
+              let headers = sheetData.headers;
+              if (!headers || headers.length === 0) {
+                 headers = ["QueryASIN", "SourceTitle", "Brand", "SourceBullets", "SourceDescription", "ReferenceRating", "ReferenceReviews", "ReferenceBSR", "ApprovedImagesJSON", "ApprovedBrandStoryPreviewLink", "ApprovedA+ModulePreviewLink", "ApprovedComparisonASINs", "ApprovedVariationCount", "ApprovedVariationTheme", "ApprovedVariationFamily", "ParentASIN", "ApprovedPrice", "ApprovedShipsFrom", "ApprovedSoldBy", "ExpectedDeliveryDays"];
+              }
+
+              const rowsToAppend = results.filter(r => !r.error).map(item => {
+                  const attributes = item.attributes || {};
+                  const mappedRow = {
+                      'queryASIN': attributes.mediaAsin || item.queryASIN || item.id,
+                      'item_name': attributes.metaTitle || '',
+                      'brand': attributes.brand || '',
+                      'product_description': attributes.description || '',
+                      'bullet_point': attributes.bullets || '',
+                      'list_price': attributes.displayPrice || '',
+                      'rating': attributes.rating || '',
+                      'reviews': attributes.reviews || '',
+                      'best_sellers_rank': attributes.bsr || '',
+                      'aplus_image_modules': attributes.hasAplus === 'YES' ? 'https://dummy-preview-link.com' : '',
+                      'brand_story_images': attributes.hasBrandStory === 'YES' ? 'https://dummy-preview-link.com' : '',
+                      'variation_family_count': attributes.variationCount || '',
+                      'variation_theme': attributes.variationTheme || '',
+                      'variation_family': attributes.variationFamily ? (Array.isArray(attributes.variationFamily) ? JSON.stringify(attributes.variationFamily) : attributes.variationFamily) : '',
+                      'parent_asin': attributes.parentAsin || '',
+                      'sold_by': attributes.soldBy || '',
+                      'ships_from': attributes.shipsFrom || '',
+                      'prime_fastest_delivery_date': attributes.primeOrFastestDeliveryDate || '',
+                      'comparison_asins': attributes.comparisonAsins ? (Array.isArray(attributes.comparisonAsins) ? JSON.stringify(attributes.comparisonAsins) : attributes.comparisonAsins) : '',
+                      'product_image_details': attributes.imgVariantDetails ? JSON.stringify(attributes.imgVariantDetails) : ''
+                  };
+
+                  const getMappedVal = (header) => {
+                      const hLow = header.toLowerCase().replace(/['" ]+/g, '');
+                      if (hLow.includes('title')) return mappedRow['item_name'];
+                      if (hLow.includes('bullet')) return mappedRow['bullet_point'];
+                      if (hLow.includes('desc')) return mappedRow['product_description'];
+                      if (hLow.includes('brand') && !hLow.includes('story')) return mappedRow['brand'];
+                      if (hLow.includes('asin') && !hLow.includes('parent') && !hLow.includes('comparison')) return mappedRow['queryASIN'];
+                      if (hLow.includes('rating')) return mappedRow['rating'];
+                      if (hLow.includes('review')) return mappedRow['reviews'];
+                      if (hLow.includes('bsr')) return mappedRow['best_sellers_rank'];
+                      if (hLow.includes('image')) return mappedRow['product_image_details'];
+                      if (hLow.includes('story')) return mappedRow['brand_story_images'];
+                      if (hLow.includes('plus')) return mappedRow['aplus_image_modules'];
+                      if (hLow.includes('comparison')) return mappedRow['comparison_asins'];
+                      if (hLow.includes('count') && hLow.includes('variation')) return mappedRow['variation_family_count'];
+                      if (hLow.includes('theme')) return mappedRow['variation_theme'];
+                      if (hLow.includes('family')) return mappedRow['variation_family'];
+                      if (hLow.includes('parent')) return mappedRow['parent_asin'];
+                      if (hLow.includes('price')) return mappedRow['list_price'];
+                      if (hLow.includes('sold')) return mappedRow['sold_by'];
+                      if (hLow.includes('ship')) return mappedRow['ships_from'];
+                      if (hLow.includes('deliver') || hLow.includes('day') || hLow.includes('time')) return mappedRow['prime_fastest_delivery_date'];
+                      return "";
+                  };
+
+                  return headers.map(h => getMappedVal(h));
+              });
+
+              if (rowsToAppend.length > 0) {
+                  await sheetManager.appendRows(activeList.linkedSheetId, rowsToAppend);
+                  statusDiv.textContent = `✅ Successfully saved ${rowsToAppend.length} items to Golden Record!`;
+                  statusDiv.style.color = "var(--success)";
+                  statusDiv.style.display = "block";
+                  setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
+              } else {
+                  throw new Error("No successful items to save.");
+              }
+
+          } catch (e) {
+              console.error(e);
+              alert("Failed to save to Golden Record: " + e.message);
+          } finally {
+              saveBulkToGoldenRecordBtn.textContent = '✨ Save Results as Golden Record';
+              saveBulkToGoldenRecordBtn.disabled = false;
+          }
+      });
+  }
 
   async function uploadToOneDrive(token, retry = false) {
       statusDiv.textContent = "Preparing Excel file...";
