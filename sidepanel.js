@@ -774,15 +774,18 @@ document.addEventListener('DOMContentLoaded', () => {
                   const fixBtnContainer = document.createElement('div');
                   fixBtnContainer.style.marginTop = '12px';
                   fixBtnContainer.style.textAlign = 'right';
+                  fixBtnContainer.style.display = 'flex';
+                  fixBtnContainer.style.justifyContent = 'flex-end';
+                  fixBtnContainer.style.gap = '8px';
 
                   const fixBtn = document.createElement('button');
-                  fixBtn.textContent = '🔧 Fix This (Generate Flat File)';
+                  fixBtn.textContent = '🔧 Generate Flat File';
                   fixBtn.className = 'auth-btn';
-                  fixBtn.style.background = 'var(--primary)';
-                  fixBtn.style.color = '#fff';
+                  fixBtn.style.background = 'var(--bg-input)';
+                  fixBtn.style.color = 'var(--text-main)';
                   fixBtn.style.fontSize = '11px';
                   fixBtn.style.padding = '6px 12px';
-                  fixBtn.style.border = 'none';
+                  fixBtn.style.border = '1px solid var(--border)';
                   fixBtn.style.borderRadius = '4px';
                   fixBtn.style.cursor = 'pointer';
 
@@ -811,7 +814,53 @@ document.addEventListener('DOMContentLoaded', () => {
                       }
                   });
 
+                  const rpaFixBtn = document.createElement('button');
+                  rpaFixBtn.textContent = '⚡ Auto-Fill in Seller Central';
+                  rpaFixBtn.className = 'rpa-fix-btn';
+                  rpaFixBtn.style.background = 'var(--primary)';
+                  rpaFixBtn.style.color = '#fff';
+                  rpaFixBtn.style.fontSize = '11px';
+                  rpaFixBtn.style.padding = '6px 12px';
+                  rpaFixBtn.style.border = 'none';
+                  rpaFixBtn.style.borderRadius = '4px';
+                  rpaFixBtn.style.cursor = 'pointer';
+
+                  rpaFixBtn.addEventListener('click', () => {
+                      const failedFields = [];
+                      if (normalizeDiffInput(expTitle) !== normalizeDiffInput(actTitle)) failedFields.push('title');
+                      if (normalizeDiffInput(expBullets) !== normalizeDiffInput(actBullets)) failedFields.push('bullets');
+                      if (normalizeDiffInput(expDesc) !== normalizeDiffInput(actDesc)) failedFields.push('description');
+
+                      if (failedFields.length > 0) {
+                          // Assemble payload for RPA auto-fill
+                          const payload = {
+                              asin: r.attributes.mediaAsin || r.queryASIN,
+                              fields: {}
+                          };
+                          if (failedFields.includes('title')) payload.fields.title = normalizeDiffInput(expTitle);
+                          if (failedFields.includes('bullets')) payload.fields.bullets = normalizeDiffInput(expBullets);
+                          if (failedFields.includes('description')) payload.fields.description = normalizeDiffInput(expDesc);
+
+                          rpaFixBtn.textContent = '⚡ Sending...';
+                          rpaFixBtn.disabled = true;
+
+                          chrome.runtime.sendMessage({
+                              action: 'ACTION_START_RPA',
+                              payload: payload
+                          }, (response) => {
+                              rpaFixBtn.textContent = '⚡ Auto-Fill in Seller Central';
+                              rpaFixBtn.disabled = false;
+                              if (chrome.runtime.lastError) {
+                                  alert("Error communicating with background script: " + chrome.runtime.lastError.message);
+                              }
+                          });
+                      } else {
+                          alert("No discrepancies detected for RPA injection.");
+                      }
+                  });
+
                   fixBtnContainer.appendChild(fixBtn);
+                  fixBtnContainer.appendChild(rpaFixBtn);
                   card.appendChild(fixBtnContainer);
 
                   modalBody.appendChild(card);

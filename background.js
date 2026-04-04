@@ -250,6 +250,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
       return true;
   }
+  else if (request.action === 'ACTION_START_RPA') {
+      const payload = request.payload;
+      const asin = payload.asin;
+
+      // Store the payload so the content script can retrieve it later
+      chrome.storage.local.set({ rpaPayload: payload }, () => {
+          // Construct the Seller Central Inventory Edit URL for the given ASIN.
+          // Note: Seller Central URLs can vary by region. We default to the US.
+          const scUrl = `https://sellercentral.amazon.com/inventory/edit?asin=${asin}`;
+          chrome.tabs.create({ url: scUrl }, (tab) => {
+              sendResponse({ status: 'rpa_started', tabId: tab.id });
+          });
+      });
+
+      return true;
+  }
 });
 
 // Global Map for Observer Resolvers

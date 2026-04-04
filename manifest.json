@@ -54,6 +54,33 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://sellercentral.amazon.com/*",
+        "https://sellercentral.amazon.ca/*",
+        "https://sellercentral.amazon.co.uk/*",
+        "https://sellercentral.amazon.de/*",
+        "https://sellercentral.amazon.fr/*",
+        "https://sellercentral.amazon.it/*",
+        "https://sellercentral.amazon.es/*",
+        "https://sellercentral.amazon.nl/*",
+        "https://sellercentral.amazon.se/*",
+        "https://sellercentral.amazon.com.be/*",
+        "https://sellercentral.amazon.com.au/*",
+        "https://sellercentral.amazon.sg/*",
+        "https://sellercentral.amazon.ae/*",
+        "https://sellercentral.amazon.sa/*",
+        "https://sellercentral.amazon.eg/*",
+        "https://sellercentral.amazon.in/*",
+        "https://sellercentral.amazon.co.jp/*",
+        "https://sellercentral.amazon.com.mx/*",
+        "https://sellercentral.amazon.com.tr/*"
+      ],
+      "js": ["src/rpaAgent.js"],
+      "run_at": "document_end"
+    }
+  ],
   "oauth2": {
     "client_id": "789113929254-tpqjd4tgmt2dbb9bp8np5lfi0aatf4g5.apps.googleusercontent.com",
     "scopes": [
