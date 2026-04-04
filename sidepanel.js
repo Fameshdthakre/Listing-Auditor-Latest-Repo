@@ -4372,6 +4372,71 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabsData = [];
     const createTab = (name, headers) => ({ name, headers, rows: [] });
 
+    // --- Phase 2: AI Semantic Batch Processing ---
+    // If we are in auditor mode, and matchStrictness === 'semantic',
+    // we need to collect all requiresSemanticCheck flags, call batch API,
+    // and mutate the tabData._pendingAuditReport values before rendering.
+    if (MEGA_MODE === 'auditor') {
+        const matchStrictnessOpt = document.querySelector('input[name="matchStrictness"]:checked');
+        const matchStrictness = matchStrictnessOpt ? matchStrictnessOpt.value : 'fuzzy';
+
+        if (matchStrictness === 'semantic') {
+            const semanticQueue = [];
+
+            // 1. Collect
+            results.forEach((tabData, rowIdx) => {
+                if (!tabData._pendingAuditReport) return;
+                const r = tabData._pendingAuditReport.results;
+
+                // Content Details (Title, Bullets, Description)
+                if (r.content && r.content.details) {
+                    r.content.details.forEach((detail, dIdx) => {
+                        if (detail.requiresSemanticCheck) {
+                            semanticQueue.push({
+                                rowIdx: rowIdx,
+                                cat: 'content',
+                                detailIdx: dIdx,
+                                type: detail.label.toLowerCase(),
+                                expected: detail.expected,
+                                actual: detail.actual || (detail.extra ? detail.extra.join(' | ') : "")
+                            });
+                        }
+                    });
+                }
+            });
+
+            // 2. Process
+            if (semanticQueue.length > 0) {
+                // Dynamically import the batch function to avoid dependency loops if not already imported
+                const { batchSemanticAudit } = await import('./auditorEngine.js');
+
+                // Show a loading UI indicator since this could take time
+                const oldText = downloadBtn.textContent;
+                downloadBtn.textContent = '⏳ Running Semantic AI...';
+                downloadBtn.disabled = true;
+
+                const aiResults = await batchSemanticAudit(semanticQueue);
+
+                // 3. Mutate Reports
+                aiResults.forEach(aiItem => {
+                    const tabData = results[aiItem.rowIdx];
+                    const report = tabData._pendingAuditReport;
+                    const detail = report.results[aiItem.cat].details[aiItem.detailIdx];
+
+                    detail.passed = aiItem.passed;
+                    detail.note = `AI Semantic Match: ${aiItem.note}`;
+                    detail.requiresSemanticCheck = false; // Resolved
+
+                    // Re-calculate category passed status
+                    report.results[aiItem.cat].passed = report.results[aiItem.cat].details.every(d => d.passed !== false);
+                });
+
+                downloadBtn.textContent = oldText;
+                downloadBtn.disabled = false;
+            }
+        }
+    }
+
     // Only create tabs if the parent field is selected
     const tabMap = {};
     const countTrackers = { variationFamily: 0, bullets: 0, brandStoryImgs: 0, aPlusImgs: 0, aPlusCarouselImgs: 0, videos: 0 };
@@ -4631,14 +4696,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                 }
 
+              const matchStrictnessOpt = document.querySelector('input[name="matchStrictness"]:checked');
+              const matchStrictness = matchStrictnessOpt ? matchStrictnessOpt.value : 'fuzzy';
+
                 auditReport = await runAuditComparison(
                     // Live Data (Attributes + Data array)
                     { ...tabData.attributes, data: tabData.data }, 
                     // Source Data (Comparison Data from Template)
                     tabData.comparisonData || {},
                     customRules,
-                    visualData
+                  visualData,
+                  { matchStrictness: matchStrictness }
                 );
+
+              // We inject the auditReport to tabData temporarily so we can mutate it after Semantic AI returns
+              tabData._pendingAuditReport = auditReport;
 
                 // Build Audit Summary
                 const failures = [];
@@ -4731,6 +4803,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 const visualDetail = r.visuals?.details?.[0];
                 row["Visual Audit Status"] = visualDetail ? (visualDetail.passed ? "PASS" : "FAIL") : "N/A";
                 row["Visual Note"] = visualDetail ? visualDetail.note : "N/A";
+            }
+
+            // But before pushing into tabs, we need to rebuild the Audit Summary row variables based on the final, potentially mutated auditReport.
+            // (Only for content properties that could have been modified by Semantic API)
+            if (auditReport) {
+                const r = auditReport.results;
+                // Re-evaluate category failures since they might have changed
+                const failures = [];
+                Object.values(r).forEach(cat => {
+                    if (cat.passed === false) {
+                        if (cat.details && cat.details.length > 0) {
+                            cat.details.forEach(d => {
+                                if (!d.passed) failures.push(d.label);
+                            });
+                        } else {
+                            failures.push("Unknown");
+                        }
+                    }
+                });
+                row["Audit Failures"] = failures.length > 0 ? failures.join(", ") : "PASS";
+
+                const setRow = (label, detail) => {
+                    const prefix = label;
+                    row[`${prefix} Expected`] = detail ? (detail.expected || "N/A") : "N/A";
+                    row[`${prefix} Actual`] = detail ? (detail.actual || "N/A") : "N/A";
+
+                    if (detail) {
+                        if (detail.passed) {
+                             const note = detail.note;
+                             if (note && note !== "Matched") {
+                                 const cleanNote = note.replace("Passed (Reordered)", "Reordered");
+                                 row[`${prefix} Pass/Fail`] = `PASS (${cleanNote})`;
+                             } else {
+                                 row[`${prefix} Pass/Fail`] = "PASS";
+                             }
+                        } else {
+                             const note = detail.note;
+                             row[`${prefix} Pass/Fail`] = note ? `FAIL (${note})` : "FAIL";
+                        }
+                    } else {
+                        row[`${prefix} Pass/Fail`] = "N/A";
+                    }
+                };
+
+                setRow("Title", r.content?.details?.find(d => d.label === "Title"));
+                setRow("Bullets", r.content?.details?.find(d => d.label === "Bullets"));
+                setRow("Description", r.content?.details?.find(d => d.label === "Description"));
             }
 
             // Populate Audit Point Tabs (for all rows, preserving QAsin order)

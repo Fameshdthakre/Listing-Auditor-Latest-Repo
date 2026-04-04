@@ -33,7 +33,7 @@ export const auditVisuals = async (targetImagesBase64, liveImageUrls, deepInsigh
     }
 };
 
-export const runAuditComparison = async (liveData, sourceData, customRules = [], visualData = null) => {
+export const runAuditComparison = async (liveData, sourceData, customRules = [], visualData = null, auditOptions = {}) => {
     const report = {
         score: 0,
         totalChecks: 0,
@@ -47,7 +47,7 @@ export const runAuditComparison = async (liveData, sourceData, customRules = [],
     const source = normalizeSourceData(sourceData);
 
     // 1. Content Audit
-    report.results.content = auditContent(live, source);
+    report.results.content = auditContent(live, source, auditOptions);
 
     // 2. Growth Audit
     report.results.growth = auditGrowth(live, source);
@@ -249,12 +249,13 @@ const evaluateStringMatch = (expected, actual, options = {}) => {
     const opts = {
         tolerance: 0.95,
         ignoreCase: true,
-        ignoreWhitespaceAndPunctuation: true, // true by default as it was the default previous behaviour in Title/Bullets matching
+        ignoreWhitespaceAndPunctuation: true,
+        matchStrictness: 'fuzzy', // 'exact', 'fuzzy', 'semantic'
         ...options
     };
 
-    if (!expected && !actual) return { passed: true, score: 1.0 };
-    if (!expected || !actual) return { passed: false, score: 0.0 };
+    if (!expected && !actual) return { passed: true, score: 1.0, requiresSemanticCheck: false };
+    if (!expected || !actual) return { passed: false, score: 0.0, requiresSemanticCheck: false };
 
     let s1 = String(expected);
     let s2 = String(actual);
@@ -265,25 +266,39 @@ const evaluateStringMatch = (expected, actual, options = {}) => {
     }
 
     if (opts.ignoreWhitespaceAndPunctuation) {
-        // Aggressive Normalization
         s1 = smartNormalize(s1);
         s2 = smartNormalize(s2);
     } else {
-        // Basic Hygiene
-        // Replace \r\n with \n and then replace \r with \n
-        s1 = s1.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        s2 = s2.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        // Trim leading and trailing spaces
-        s1 = s1.trim();
-        s2 = s2.trim();
+        s1 = s1.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+        s2 = s2.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    }
+
+    if (opts.matchStrictness === 'exact') {
+        const passed = (s1 === s2);
+        return {
+            passed: passed,
+            score: passed ? 1.0 : 0.0,
+            normalizedExpected: s1,
+            normalizedActual: s2,
+            requiresSemanticCheck: false
+        };
     }
 
     const score = calculateSimilarity(s1, s2);
+    let passed = score >= opts.tolerance;
+    let requiresSemanticCheck = false;
+
+    if (!passed && opts.matchStrictness === 'semantic') {
+        // AI Fallback requested
+        requiresSemanticCheck = true;
+    }
+
     return {
-        passed: score >= opts.tolerance,
+        passed: passed,
         score: score,
         normalizedExpected: s1,
-        normalizedActual: s2
+        normalizedActual: s2,
+        requiresSemanticCheck: requiresSemanticCheck
     };
 };
 
@@ -520,24 +535,58 @@ const normalizeSourceData = (data) => {
 
 // --- Audit Functions (Refined for Type 2 Logic) ---
 
-const auditContent = (live, source) => {
+// --- Amazon TOS Enforcer ---
+const BANNED_CLAIMS = [
+    "number one", "number 1", "#1", "best seller", "bestselling",
+    "bestseller", "top rated", "guaranteed", "100% money back",
+    "fda approved" // (Often a violation unless highly specific context, usually requires registration vs approval)
+];
+const EMOJI_REGEX = /[\p{Extended_Pictographic}]/gu;
+
+const checkTosViolations = (text) => {
+    if (!text) return null;
+    const violations = [];
+    const lower = text.toLowerCase();
+    BANNED_CLAIMS.forEach(claim => {
+        if (lower.includes(claim.toLowerCase())) violations.push(`Banned Claim: "${claim}"`);
+    });
+    if (EMOJI_REGEX.test(text)) {
+        violations.push("Emojis found (Violation of Amazon Style Guidelines)");
+    }
+    return violations.length > 0 ? violations.join(" | ") : null;
+};
+
+const appendTosWarning = (detailItem, actualText) => {
+    const tosWarning = checkTosViolations(actualText);
+    if (tosWarning) {
+        detailItem.note = (detailItem.note || "") + ` ⚠️ TOS Warning: ${tosWarning}`;
+        detailItem.requiresRemediation = true;
+    }
+};
+
+const auditContent = (live, source, auditOptions = {}) => {
     const res = { passed: true, details: [] };
     let checks = 0;
 
     // 1. Title Audit (Smart Match)
     if (source.title) {
         checks++;
-        const matchResult = evaluateStringMatch(source.title, live.metaTitle, { tolerance: 0.95 });
-        const match = matchResult.passed;
+        const matchResult = evaluateStringMatch(source.title, live.metaTitle, {
+            tolerance: 0.95,
+            matchStrictness: auditOptions.matchStrictness
+        });
         
-        res.details.push({ 
+        const detailItem = {
             label: "Title", 
-            passed: match, 
+            passed: matchResult.passed,
             expected: source.title, 
             actual: live.metaTitle,
-            note: match ? `Match (Score: ${(matchResult.score*100).toFixed(1)}%)` : `Mismatch (Score: ${(matchResult.score*100).toFixed(1)}%)`
-        });
-        if (!match) res.passed = false;
+            note: matchResult.passed ? `Match (Score: ${(matchResult.score*100).toFixed(1)}%)` : `Mismatch (Score: ${(matchResult.score*100).toFixed(1)}%)`,
+            requiresSemanticCheck: matchResult.requiresSemanticCheck
+        };
+        appendTosWarning(detailItem, live.metaTitle);
+        res.details.push(detailItem);
+        if (!matchResult.passed && !matchResult.requiresSemanticCheck) res.passed = false;
     }
 
     // 2. Brand Audit (Exact Match Preserved)
@@ -572,7 +621,10 @@ const auditContent = (live, source) => {
             liveBullets.forEach((liveRaw, liveIdx) => {
                 if (matchedLiveIndices.has(liveIdx)) return; // Skip already matched
 
-                const matchResult = evaluateStringMatch(srcRaw, liveRaw, { tolerance: 0.95 });
+                const matchResult = evaluateStringMatch(srcRaw, liveRaw, {
+                    tolerance: 0.95,
+                    matchStrictness: auditOptions.matchStrictness
+                });
                 if (matchResult.score > bestScore) {
                     bestScore = matchResult.score;
                     bestMatchIdx = liveIdx;
@@ -621,7 +673,7 @@ const auditContent = (live, source) => {
         const extraContent = extraIndices.map(i => liveBullets[i]);
         const missingContent = missing.map(i => srcBullets[i-1]); // missing contains 1-based indices
 
-        res.details.push({ 
+        const detailItem = {
             label: "Bullets", 
             passed: finalPass, 
             expected: `${srcBullets.length} Bullets`, 
@@ -629,8 +681,19 @@ const auditContent = (live, source) => {
             note: statusMsg,
             missing: missingContent,
             extra: extraContent
-        });
-        if (!finalPass) res.passed = false;
+        };
+
+        if (!finalPass && auditOptions.matchStrictness === 'semantic' && missingContent.length > 0) {
+            // Need to run semantic match on missing vs extra bullets
+            detailItem.requiresSemanticCheck = true;
+            // Temporarily assume pass until semantic check proves otherwise, or leave as false and fix after check.
+            // Leaving as false is safer. The batch check will flip it to true if semantic match works.
+        }
+
+        appendTosWarning(detailItem, live.bullets);
+        res.details.push(detailItem);
+
+        if (!finalPass && !detailItem.requiresSemanticCheck) res.passed = false;
     }
 
     // 4. Description Audit (Smart Contains)
@@ -642,6 +705,7 @@ const auditContent = (live, source) => {
         let match = false;
         let note = "";
         let scoreStr = "";
+        let requiresSemanticDesc = false;
 
         if (!sNorm) {
              match = true; // If source was just punctuation, ignore
@@ -656,21 +720,32 @@ const auditContent = (live, source) => {
                 // without heavily penalizing for length. The requirement is to run a fuzzy match comparing
                 // expected against a substring of live of the same length (fuzzy contains), but for Phase 1
                 // we'll run full fuzzy match at 0.85 tolerance as a fallback.
-                const matchResult = evaluateStringMatch(source.description, live.description, { tolerance: 0.85 });
+                const matchResult = evaluateStringMatch(source.description, live.description, {
+                    tolerance: 0.85,
+                    matchStrictness: auditOptions.matchStrictness
+                });
                 match = matchResult.passed;
                 note = match ? "Fuzzy Match (Tolerance: 0.85)" : "Fuzzy Mismatch";
                 scoreStr = ` (Score: ${(matchResult.score*100).toFixed(1)}%)`;
+                if (matchResult.requiresSemanticCheck) {
+                    note += " (Pending Semantic Check)";
+                    requiresSemanticDesc = true;
+                }
             }
         }
 
-        res.details.push({ 
+        const detailItem = {
             label: "Description", 
             passed: match, 
             expected: "Content Match", 
             actual: match ? "Found" : "Missing",
-            note: note + scoreStr
-        });
-        if (!match) res.passed = false;
+            note: note + scoreStr,
+            requiresSemanticCheck: requiresSemanticDesc
+        };
+        appendTosWarning(detailItem, live.description);
+        res.details.push(detailItem);
+
+        if (!match && !requiresSemanticDesc) res.passed = false;
     }
 
     if (checks === 0) res.status = 'skipped';
@@ -1242,4 +1317,64 @@ const auditCustomRules = (live, source, rules) => {
 
     if (checks === 0) res.status = 'skipped';
     return res;
+};
+// auditorEngine.js - Semantic Batching API
+
+/**
+ * Handles batch API requests to the Semantic text comparison endpoint.
+ * @param {Array} semanticQueue - Array of items needing semantic checks { rowRef, type, expected, actual, ... }
+ * @param {Object} settings - Context settings
+ */
+export const batchSemanticAudit = async (semanticQueue, settings = {}) => {
+    if (!semanticQueue || semanticQueue.length === 0) return [];
+
+    // Construct Payload
+    // Expected structure for Cloud Function:
+    // { requests: [ { id: "item1_title", type: "title", expected: "...", actual: "..." }, ... ] }
+    const payload = {
+        requests: semanticQueue.map((item, idx) => ({
+            id: `req_${idx}`, // Local correlation ID
+            type: item.type,
+            expected: item.expected,
+            actual: item.actual
+        }))
+    };
+
+    try {
+        const response = await fetch('https://us-central1-your-project.cloudfunctions.net/semanticTextCompare', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Semantic API Error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        // data.results is expected to be an array of { id, passed, similarity, note }
+
+        // Merge results back into the queue
+        const resultsMap = {};
+        if (data && data.results) {
+             data.results.forEach(res => {
+                 resultsMap[res.id] = res;
+             });
+        }
+
+        return semanticQueue.map((item, idx) => {
+             const aiResult = resultsMap[`req_${idx}`];
+             if (aiResult) {
+                 return { ...item, passed: aiResult.passed, note: aiResult.note, aiScore: aiResult.similarity };
+             }
+             return { ...item, passed: false, note: "AI Check Failed (No data)" };
+        });
+
+    } catch (e) {
+        console.error("AI Semantic Audit failed:", e);
+        // Fallback: Fail everything in the queue gracefully
+        return semanticQueue.map(item => ({ ...item, passed: false, note: `AI Error: ${e.message}` }));
+    }
 };
