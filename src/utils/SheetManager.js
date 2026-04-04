@@ -305,16 +305,106 @@ export class SheetManager {
 
     /**
      * Updates multiple specific cells in the spreadsheet in a single batch request.
+     * Intercepts the request to archive the previous row state to the _Archive worksheet.
      * @param {string} inputId
      * @param {Array<{range: string, values: Array<Array<any>>}>} updates
      * Example update object: { range: "Sheet1!D2", values: [["Passed"]] }
      */
     async batchUpdateRows(inputId, updates) {
         if (!updates || updates.length === 0) return;
+
+        // Perform Archiving Before Update
+        try {
+            await this._archiveRows(inputId, updates);
+        } catch (archiveErr) {
+            console.error("SheetManager: Failed to archive row(s)", archiveErr);
+            // Non-blocking: We log the error but still proceed with the update.
+        }
+
         if (this.provider === 'microsoft') {
             return this.batchUpdateRowsMicrosoft(inputId, updates);
         }
         return this.batchUpdateRowsGoogle(inputId, updates);
+    }
+
+    /**
+     * Helper to read the current row values, append a timestamp, and append them to _Archive.
+     */
+    async _archiveRows(inputId, updates) {
+        // Collect all target row numbers and sheet names from the update ranges
+        const targetRanges = updates.map(u => {
+            const parts = u.range.split('!');
+            let sheetName = parts.length > 1 ? parts[0].replace(/'/g, '') : 'Data';
+            let cellRef = parts.length > 1 ? parts[1] : parts[0];
+
+            // Extract row number (e.g., from 'Z5' or 'A5:Z5')
+            const rowMatch = cellRef.match(/[0-9]+/);
+            let rowNum = rowMatch ? parseInt(rowMatch[0], 10) : null;
+
+            return { sheetName, rowNum, cellRef };
+        }).filter(r => r.rowNum !== null);
+
+        if (targetRanges.length === 0) return;
+
+        // Dedup rows if multiple updates target the same row
+        const uniqueRows = [];
+        const seen = new Set();
+        targetRanges.forEach(r => {
+            const key = `${r.sheetName}:${r.rowNum}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueRows.push(r);
+            }
+        });
+
+        const archivedData = [];
+        const timestamp = new Date().toISOString();
+
+        for (const target of uniqueRows) {
+            try {
+                let rowData = [];
+                if (this.provider === 'microsoft') {
+                    const fileId = this.extractSpreadsheetId(inputId);
+                    const token = await this.getToken();
+                    const url = `${this.msBaseUrl}/${fileId}/workbook/worksheets('${target.sheetName}')/range(address='${target.rowNum}:${target.rowNum}')`;
+
+                    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.values && data.values.length > 0) {
+                            rowData = data.values[0];
+                        }
+                    }
+                } else {
+                    const spreadsheetId = this.extractSpreadsheetId(inputId);
+                    const token = await this.getToken();
+                    const range = `'${target.sheetName}'!${target.rowNum}:${target.rowNum}`;
+                    const url = `${this.googleBaseUrl}/${spreadsheetId}/values/${encodeURIComponent(range)}`;
+
+                    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.values && data.values.length > 0) {
+                            rowData = data.values[0];
+                        }
+                    }
+                }
+
+                if (rowData.length > 0) {
+                    // Prepend Timestamp and Action Type
+                    archivedData.push([timestamp, 'UPDATE', ...rowData]);
+                }
+            } catch (err) {
+                console.warn(`Could not fetch row ${target.rowNum} for archiving:`, err);
+            }
+        }
+
+        if (archivedData.length > 0) {
+            // Ensure _Archive sheet exists before appending, but appendRows logic typically fails
+            // if the sheet doesn't exist. For this scope, we attempt append.
+            // If it fails because the sheet is missing, the try/catch in batchUpdateRows catches it.
+            await this.appendRows(inputId, archivedData, '_Archive');
+        }
     }
 
     async batchUpdateRowsGoogle(inputId, updates) {
