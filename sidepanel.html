@@ -282,6 +282,19 @@
 
     <!-- Scraping Configuration Container -->
     <div id="scrapingConfig" class="options-container">
+
+      <!-- Text Match Strictness Controls -->
+      <div class="auditor-only-setting" style="display:none; margin-bottom: 15px; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px;">
+          <div style="font-weight: 600; font-size: 12px; margin-bottom: 8px; color: var(--text-main);">
+              Text Match Strictness <span class="info-icon" data-tooltip="Exact: Strict equality. Fuzzy: Allows typos. Semantic: AI understands meaning." style="cursor:help;">ⓘ</span>
+          </div>
+          <div class="radio-group" style="display: flex; gap: 15px; font-size: 11px;">
+              <label><input type="radio" name="matchStrictness" value="exact"> Exact</label>
+              <label><input type="radio" name="matchStrictness" value="fuzzy" checked> Fuzzy (Default)</label>
+              <label><input type="radio" name="matchStrictness" value="semantic"> Semantic AI</label>
+          </div>
+      </div>
+
       <div class="options-header">
         <span>Scraping Configuration</span>
         <label style="cursor:pointer; display:flex; align-items:center;">
