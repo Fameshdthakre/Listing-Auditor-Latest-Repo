@@ -84,10 +84,14 @@
               <label style="margin-bottom:4px; display:flex; justify-content:space-between; width:100%;">
                   <span>Batch Processing Option</span>
               </label>
-              <div style="font-size:11px; display:flex; flex-direction:column; gap:6px; margin-bottom: 8px;">
-                  <label style="cursor:pointer;"><input type="radio" name="batchMode" value="random" checked> Randomised Batch (Default)</label>
-                  <label style="cursor:pointer;"><input type="radio" name="batchMode" value="fixed"> Fixed Batch Operation</label>
-                  <div id="fixedBatchSettings" style="display:flex; gap:8px; align-items:center; margin-top:2px;">
+              <div style="font-size:11px; display:flex; flex-direction:column; gap:6px; margin-bottom: 8px; width:100%;">
+                  <div class="segmented-control" style="width:100%;">
+                      <input type="radio" name="batchMode" id="batchRandom" value="random" checked>
+                      <label for="batchRandom" style="flex:1; text-align:center;">Random</label>
+                      <input type="radio" name="batchMode" id="batchFixed" value="fixed">
+                      <label for="batchFixed" style="flex:1; text-align:center;">Fixed</label>
+                  </div>
+                  <div id="fixedBatchSettings" style="display:none; gap:8px; align-items:center; margin-top:4px; background:var(--bg-input); padding:6px; border:1px solid var(--border); border-radius:4px; justify-content:space-between;">
                       <label style="display:flex; align-items:center; gap:4px;" title="Max 30">Max Size: <input type="number" id="fixedBatchSize" value="5" min="1" max="30" style="width:40px; padding:2px;"></label>
                       <label style="display:flex; align-items:center; gap:4px;" title="Delay in Seconds">Max Wait: <input type="number" id="fixedBatchWait" value="15" min="1" style="width:40px; padding:2px;"></label>
                   </div>

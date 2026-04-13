@@ -1369,6 +1369,20 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   });
 
+  // Batch Option Display Logic
+  document.querySelectorAll('input[name="batchMode"]').forEach(r => {
+      r.addEventListener('change', (e) => {
+          const fixedSettings = document.getElementById('fixedBatchSettings');
+          if (fixedSettings) {
+              if (e.target.value === 'fixed') {
+                  fixedSettings.style.display = 'flex';
+              } else {
+                  fixedSettings.style.display = 'none';
+              }
+          }
+      });
+  });
+
   if (connectSheetBtn) {
       connectSheetBtn.addEventListener('click', () => {
           const inputVal = sheetUrlInput.value.trim();
