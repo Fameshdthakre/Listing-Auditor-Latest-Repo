@@ -692,6 +692,23 @@ document.addEventListener('DOMContentLoaded', () => {
               header.textContent = `ASIN: ${r.attributes.mediaAsin || r.queryASIN}`;
               card.appendChild(header);
 
+              const asin = r.attributes.mediaAsin || r.queryASIN;
+              const viewDiffBtn = document.createElement('button');
+              viewDiffBtn.className = 'view-diff-btn';
+              viewDiffBtn.textContent = '🔍 View Diff Report';
+              viewDiffBtn.style.marginTop = '4px';
+              viewDiffBtn.style.marginBottom = '8px';
+              viewDiffBtn.style.padding = '4px 8px';
+              viewDiffBtn.style.fontSize = '12px';
+              viewDiffBtn.style.cursor = 'pointer';
+              viewDiffBtn.style.backgroundColor = '#f6f8fa';
+              viewDiffBtn.style.border = '1px solid #d1d5da';
+              viewDiffBtn.style.borderRadius = '3px';
+              viewDiffBtn.addEventListener('click', () => {
+                  chrome.tabs.create({ url: chrome.runtime.getURL(`report.html?asin=${asin}`) });
+              });
+              card.appendChild(viewDiffBtn);
+
               const addDiffSection = (label, expected, actual) => {
                   if (!expected) return; // Only show if expected was provided
                   const section = document.createElement('div');
@@ -912,6 +929,21 @@ document.addEventListener('DOMContentLoaded', () => {
               const tdStatus = document.createElement('td');
               tdStatus.textContent = status;
               tdStatus.className = statusClass;
+              if (statusClass === 'status-bad' && MEGA_MODE === 'auditor') {
+                  const br = document.createElement('br');
+                  const viewDiffBtn = document.createElement('button');
+                  viewDiffBtn.className = 'view-diff-btn';
+                  viewDiffBtn.textContent = '🔍 View Diff Report';
+                  viewDiffBtn.style.marginTop = '4px';
+                  viewDiffBtn.style.fontSize = '10px';
+                  viewDiffBtn.style.cursor = 'pointer';
+                  viewDiffBtn.addEventListener('click', () => {
+                      const asin = r.attributes?.mediaAsin || r.queryASIN;
+                      chrome.tabs.create({ url: chrome.runtime.getURL(`report.html?asin=${asin}`) });
+                  });
+                  tdStatus.appendChild(br);
+                  tdStatus.appendChild(viewDiffBtn);
+              }
               tr.appendChild(tdStatus);
 
               // Title
