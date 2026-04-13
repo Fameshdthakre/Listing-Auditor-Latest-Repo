@@ -1369,6 +1369,20 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   });
 
+  // Batch Option Display Logic
+  document.querySelectorAll('input[name="batchMode"]').forEach(r => {
+      r.addEventListener('change', (e) => {
+          const fixedSettings = document.getElementById('fixedBatchSettings');
+          if (fixedSettings) {
+              if (e.target.value === 'fixed') {
+                  fixedSettings.style.display = 'flex';
+              } else {
+                  fixedSettings.style.display = 'none';
+              }
+          }
+      });
+  });
+
   if (connectSheetBtn) {
       connectSheetBtn.addEventListener('click', () => {
           const inputVal = sheetUrlInput.value.trim();
@@ -3233,6 +3247,13 @@ document.addEventListener('DOMContentLoaded', () => {
               scanBtn.textContent = 'Start Bulk Scraping';
               validateScraperInput(); // Validate initial state
           }
+          if (document.querySelector('.btn-group')) {
+              document.querySelector('.btn-group').style.display = 'flex';
+          }
+          const auditCatalogueBtn = document.getElementById('auditCatalogueBtn');
+          if (auditCatalogueBtn) {
+              auditCatalogueBtn.style.display = 'none';
+          }
 
       } else {
           // Auditor Mode
@@ -3257,6 +3278,13 @@ document.addEventListener('DOMContentLoaded', () => {
           // Set mode
           mode = 'catalogue';
           if(scanBtn) scanBtn.style.display = 'none'; // Hide main scan button for Auditor
+          if (document.querySelector('.btn-group')) {
+              document.querySelector('.btn-group').style.display = 'none';
+          }
+          const auditCatalogueBtn = document.getElementById('auditCatalogueBtn');
+          if (auditCatalogueBtn) {
+              auditCatalogueBtn.style.display = 'block';
+          }
           
           loadCatalogue();
       }
@@ -4086,6 +4114,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isScanning) {
           scanBtn.style.display = 'none';
           stopBtn.style.display = 'block';
+          // Make sure btn-group is flex
+          if (document.querySelector('.btn-group')) {
+              document.querySelector('.btn-group').style.display = 'flex';
+          }
+          const auditCatalogueBtn = document.getElementById('auditCatalogueBtn');
+          if (auditCatalogueBtn) auditCatalogueBtn.style.display = 'none';
+
           progressContainer.style.display = 'block';
           downloadBtn.style.display = 'none';
           downloadXlsxBtn.style.display = 'none'; 
@@ -4113,8 +4148,18 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
           if (MEGA_MODE === 'scraper') {
               scanBtn.style.display = 'block';
+              if (document.querySelector('.btn-group')) {
+                  document.querySelector('.btn-group').style.display = 'flex';
+              }
+              const auditCatalogueBtn = document.getElementById('auditCatalogueBtn');
+              if (auditCatalogueBtn) auditCatalogueBtn.style.display = 'none';
           } else {
               scanBtn.style.display = 'none';
+              if (document.querySelector('.btn-group')) {
+                  document.querySelector('.btn-group').style.display = 'none';
+              }
+              const auditCatalogueBtn = document.getElementById('auditCatalogueBtn');
+              if (auditCatalogueBtn) auditCatalogueBtn.style.display = 'block';
           }
           stopBtn.style.display = 'none';
           progressContainer.style.display = 'none';
@@ -5605,6 +5650,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (closeWhatsNewBtn) closeWhatsNewBtn.addEventListener('click', closeWhatsNew);
   if (dismissWhatsNewBtn) dismissWhatsNewBtn.addEventListener('click', closeWhatsNew);
+  const closeUpdateModalIcon = document.getElementById('closeUpdateModalIcon');
+  if (closeUpdateModalIcon) closeUpdateModalIcon.addEventListener('click', closeWhatsNew);
 
   // --- Help / Demo Logic ---
   const helpBtn = document.getElementById('helpBtn');

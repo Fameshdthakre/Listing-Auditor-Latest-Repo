@@ -5,12 +5,12 @@
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
-  <div class="app-container">
+  <div id="frozen-header">
     <div class="top-bar">
         <div>
             <h2>
                 <img src="images/icon48.png" class="app-logo" alt="Logo">
-                Listing Auditor <span class="badge">v1.1.4</span>
+                Listing Auditor <span class="badge">v1.1.5</span>
             </h2>
             <div class="subtitle" style="font-size: 11px; color: var(--text-muted); margin-left: 36px; margin-top: -2px;">For Amazon</div>
         </div>
@@ -42,6 +42,9 @@
     <button id="captureActiveTabBtn" class="action-btn hover-btn" style="display:none; width: 100%; background:var(--primary); color:#fff; border:none; box-shadow: var(--shadow-sm); font-weight:700; margin-bottom:12px;">
         📸 Capture Active Tab to Golden Record
     </button>
+  </div>
+  <div id="scrollable-main">
+    <div class="app-container" style="padding: 0;">
 
     <!-- Bulk Section Header -->
     <button id="tabBulk" class="accordion-header expanded">
@@ -81,10 +84,14 @@
               <label style="margin-bottom:4px; display:flex; justify-content:space-between; width:100%;">
                   <span>Batch Processing Option</span>
               </label>
-              <div style="font-size:11px; display:flex; flex-direction:column; gap:6px; margin-bottom: 8px;">
-                  <label style="cursor:pointer;"><input type="radio" name="batchMode" value="random" checked> Randomised Batch (Default)</label>
-                  <label style="cursor:pointer;"><input type="radio" name="batchMode" value="fixed"> Fixed Batch Operation</label>
-                  <div id="fixedBatchSettings" style="display:flex; gap:8px; align-items:center; margin-top:2px;">
+              <div style="font-size:11px; display:flex; flex-direction:column; gap:6px; margin-bottom: 8px; width:100%;">
+                  <div class="segmented-control" style="width:100%;">
+                      <input type="radio" name="batchMode" id="batchRandom" value="random" checked>
+                      <label for="batchRandom" style="flex:1; text-align:center;">Random</label>
+                      <input type="radio" name="batchMode" id="batchFixed" value="fixed">
+                      <label for="batchFixed" style="flex:1; text-align:center;">Fixed</label>
+                  </div>
+                  <div id="fixedBatchSettings" style="display:none; gap:8px; align-items:center; margin-top:4px; background:var(--bg-input); padding:6px; border:1px solid var(--border); border-radius:4px; justify-content:space-between;">
                       <label style="display:flex; align-items:center; gap:4px;" title="Max 30">Max Size: <input type="number" id="fixedBatchSize" value="5" min="1" max="30" style="width:40px; padding:2px;"></label>
                       <label style="display:flex; align-items:center; gap:4px;" title="Delay in Seconds">Max Wait: <input type="number" id="fixedBatchWait" value="15" min="1" style="width:40px; padding:2px;"></label>
                   </div>
@@ -275,9 +282,6 @@
             </label>
         </div>
 
-        <button id="auditCatalogueBtn" style="width: 100%; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px;">
-             🛡️ AUDIT CATALOGUE
-        </button>
     </div>
 
     <!-- Scraping Configuration Container -->
@@ -499,11 +503,6 @@
       </div>
     </div>
 
-    <div class="btn-group">
-      <button id="scanBtn">Start Audit (Current Tabs)</button>
-      <button id="stopBtn">Stop Scanning</button>
-    </div>
-
     <div id="progressContainer"><div id="progressBar"></div></div>
     
     <div style="text-align: center; margin-bottom: 12px;">
@@ -607,11 +606,21 @@
             </div>
         </div>
     </div>
+    </div>
+  </div>
 
+  <div id="frozen-bottom">
+    <div class="btn-group">
+      <button id="scanBtn">Start Audit (Current Tabs)</button>
+      <button id="stopBtn">Stop Scanning</button>
+    </div>
+    <button id="auditCatalogueBtn" style="width: 100%; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px;">
+         🛡️ AUDIT CATALOGUE
+    </button>
     <div class="signature">
         <div class="brand-line">Created with ❤️ by <strong><a href="https://www.linkedin.com/in/famesh-thakre-6a2825118" target="_blank" style="color: inherit; text-decoration: none;">TransFamesh</a></strong>.</div>
         <div class="footer-links">
-            <a id="feedbackLink">Feedback & Suggestions</a>
+            <a id="feedbackLink">Feedback</a>
             <span class="sep">•</span>
             <a href="https://sites.google.com/view/listing-auditor-for-amazon/privacy-policy" target="_blank">Privacy Policy</a>
             <span class="sep">•</span>
@@ -847,9 +856,10 @@
   </dialog>
 
   <dialog id="whatsNewModal" style="background:var(--surface-solid); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-lg); width:90%; max-width:420px; padding:0; overflow:hidden;">
-      <div style="background: var(--primary-gradient); padding: 20px; text-align: center; color: white;">
+      <div style="background: var(--primary-gradient); padding: 20px; text-align: center; color: white; position: relative;">
+          <span id="closeUpdateModalIcon" class="modal-close-icon">&times;</span>
           <h2 style="margin:0; font-size:18px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:8px; color: white;">
-              🎉 Major Enterprise Upgrade <span style="font-size:10px; background:rgba(255,255,255,0.2); padding:2px 6px; border-radius:12px;">v1.1.4</span>
+              🎉 Major Enterprise Upgrade <span style="font-size:10px; background:rgba(255,255,255,0.2); padding:2px 6px; border-radius:12px;">v1.1.5</span>
           </h2>
           <p style="margin:6px 0 0 0; font-size:12px; opacity:0.9;">We've supercharged the Listing Auditor with powerful new capabilities.</p>
       </div>
