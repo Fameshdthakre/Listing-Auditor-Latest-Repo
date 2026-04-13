@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Diff Report</title>
+    <link rel="stylesheet" href="report.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 id="reportAsin">ASIN: Loading...</h1>
+            <div id="overallStatus" class="status-badge status-fail">FAILED</div>
+        </div>
+
+        <div id="textAuditSection" class="section" style="display: none;">
+            <div class="section-header">📝 Text Audit (Discrepancies)</div>
+            <div id="textAuditContent" class="section-content">
+                <!-- Text diffs injected here -->
+            </div>
+        </div>
+
+        <div id="visualAuditSection" class="section" style="display: none;">
+            <div class="section-header">🖼️ Visual Audit (Discrepancies)</div>
+            <div id="visualAuditContent" class="section-content">
+                <!-- Image comparisons injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="report.js"></script>
+</body>
+</html>
