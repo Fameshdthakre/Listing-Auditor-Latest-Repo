@@ -5,12 +5,12 @@
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
-  <div class="app-container">
+  <div id="frozen-header">
     <div class="top-bar">
         <div>
             <h2>
                 <img src="images/icon48.png" class="app-logo" alt="Logo">
-                Listing Auditor <span class="badge">v1.1.4</span>
+                Listing Auditor <span class="badge">v1.1.5</span>
             </h2>
             <div class="subtitle" style="font-size: 11px; color: var(--text-muted); margin-left: 36px; margin-top: -2px;">For Amazon</div>
         </div>
@@ -42,6 +42,9 @@
     <button id="captureActiveTabBtn" class="action-btn hover-btn" style="display:none; width: 100%; background:var(--primary); color:#fff; border:none; box-shadow: var(--shadow-sm); font-weight:700; margin-bottom:12px;">
         📸 Capture Active Tab to Golden Record
     </button>
+  </div>
+  <div id="scrollable-main">
+    <div class="app-container" style="padding: 0;">
 
     <!-- Bulk Section Header -->
     <button id="tabBulk" class="accordion-header expanded">
@@ -275,9 +278,6 @@
             </label>
         </div>
 
-        <button id="auditCatalogueBtn" style="width: 100%; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px;">
-             🛡️ AUDIT CATALOGUE
-        </button>
     </div>
 
     <!-- Scraping Configuration Container -->
@@ -499,11 +499,6 @@
       </div>
     </div>
 
-    <div class="btn-group">
-      <button id="scanBtn">Start Audit (Current Tabs)</button>
-      <button id="stopBtn">Stop Scanning</button>
-    </div>
-
     <div id="progressContainer"><div id="progressBar"></div></div>
     
     <div style="text-align: center; margin-bottom: 12px;">
@@ -607,8 +602,18 @@
             </div>
         </div>
     </div>
+    </div>
+  </div>
 
-    <div class="signature">
+  <div id="frozen-bottom">
+    <div class="btn-group">
+      <button id="scanBtn">Start Audit (Current Tabs)</button>
+      <button id="stopBtn">Stop Scanning</button>
+    </div>
+    <button id="auditCatalogueBtn" style="width: 100%; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px;">
+         🛡️ AUDIT CATALOGUE
+    </button>
+    <div class="signature" style="margin-top: 0; padding-top: 10px; padding-bottom: 10px;">
         <div class="brand-line">Created with ❤️ by <strong><a href="https://www.linkedin.com/in/famesh-thakre-6a2825118" target="_blank" style="color: inherit; text-decoration: none;">TransFamesh</a></strong>.</div>
         <div class="footer-links">
             <a id="feedbackLink">Feedback & Suggestions</a>
@@ -847,9 +852,10 @@
   </dialog>
 
   <dialog id="whatsNewModal" style="background:var(--surface-solid); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-lg); width:90%; max-width:420px; padding:0; overflow:hidden;">
-      <div style="background: var(--primary-gradient); padding: 20px; text-align: center; color: white;">
+      <div style="background: var(--primary-gradient); padding: 20px; text-align: center; color: white; position: relative;">
+          <span id="closeUpdateModalIcon" class="modal-close-icon">&times;</span>
           <h2 style="margin:0; font-size:18px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:8px; color: white;">
-              🎉 Major Enterprise Upgrade <span style="font-size:10px; background:rgba(255,255,255,0.2); padding:2px 6px; border-radius:12px;">v1.1.4</span>
+              🎉 Major Enterprise Upgrade <span style="font-size:10px; background:rgba(255,255,255,0.2); padding:2px 6px; border-radius:12px;">v1.1.5</span>
           </h2>
           <p style="margin:6px 0 0 0; font-size:12px; opacity:0.9;">We've supercharged the Listing Auditor with powerful new capabilities.</p>
       </div>
