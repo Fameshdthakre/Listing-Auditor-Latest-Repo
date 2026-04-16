@@ -2951,7 +2951,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (feedbackLink) {
     feedbackLink.addEventListener('click', () => {
-        const version = chrome.runtime.getManifest().version;
+        const manifest = chrome.runtime.getManifest();
+        const appName = chrome.i18n.getMessage("appName") || manifest.name;
+        const version = `${appName} ${manifest.version}`;
         const baseUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSeZ4zNH3_Jiov3JnTa5K2VXffCCkDSsh-KvK_h3kIxmbejoIg/viewform';
         const versionFieldId = 'entry.2030262534'; 
         const emailFieldId = 'entry.1847764537'; 
