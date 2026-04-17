@@ -1710,3 +1710,6 @@ body[data-theme="dark"] del.diff-del {
 .icon-btn:hover {
     background: rgba(0,0,0,0.05);
 }
+.diff-empty {
+    display: inline-block;
+}

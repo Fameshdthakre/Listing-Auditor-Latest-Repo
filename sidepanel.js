@@ -23,23 +23,45 @@
 
       let i = eWords.length;
       let j = aWords.length;
-      const diffResult = [];
+
+      const leftCol = [];
+      const rightCol = [];
 
       while (i > 0 || j > 0) {
           if (i > 0 && j > 0 && eWords[i - 1] === aWords[j - 1]) {
-              diffResult.push(`<span>${escapeHtml(eWords[i - 1])}</span>`);
+              const word = escapeHtml(eWords[i - 1]);
+              leftCol.push(`<span>${word}</span>`);
+              rightCol.push(`<span>${word}</span>`);
               i--;
               j--;
           } else if (j > 0 && (i === 0 || lcsMatrix[i][j - 1] >= lcsMatrix[i - 1][j])) {
-              diffResult.push(`<ins class="diff-ins">${escapeHtml(aWords[j - 1])}</ins>`);
+              const word = escapeHtml(aWords[j - 1]);
+              leftCol.push(`<span class="diff-empty"></span>`);
+              rightCol.push(`<ins class="diff-ins">${word}</ins>`);
               j--;
           } else if (i > 0 && (j === 0 || lcsMatrix[i][j - 1] < lcsMatrix[i - 1][j])) {
-              diffResult.push(`<del class="diff-del">${escapeHtml(eWords[i - 1])}</del>`);
+              const word = escapeHtml(eWords[i - 1]);
+              leftCol.push(`<del class="diff-del">${word}</del>`);
+              rightCol.push(`<span class="diff-empty"></span>`);
               i--;
           }
       }
 
-      return diffResult.reverse().join(' ');
+      leftCol.reverse();
+      rightCol.reverse();
+
+      return `
+          <div class="split-diff-container" style="display:flex; width:100%; border-radius:6px; overflow:hidden;">
+              <div class="split-diff-col split-diff-left" style="flex:1; display:flex; flex-direction:column; min-width:0; border-right:1px solid var(--border);">
+                  <div class="split-diff-header" style="background-color:var(--bg-input); border-bottom:1px solid var(--border); padding:4px 8px; font-weight:600; font-size:11px; text-align:center;">Expected</div>
+                  <div class="split-diff-content" style="padding:8px; font-family:monospace; font-size:11px; white-space:pre-wrap; word-break:break-word; height:100%;">${leftCol.join(' ')}</div>
+              </div>
+              <div class="split-diff-col split-diff-right" style="flex:1; display:flex; flex-direction:column; min-width:0;">
+                  <div class="split-diff-header" style="background-color:var(--bg-input); border-bottom:1px solid var(--border); padding:4px 8px; font-weight:600; font-size:11px; text-align:center;">Actual</div>
+                  <div class="split-diff-content" style="padding:8px; font-family:monospace; font-size:11px; white-space:pre-wrap; word-break:break-word; height:100%;">${rightCol.join(' ')}</div>
+              </div>
+          </div>
+      `;
   };
   import {
       marketplaceData, ZIP_DEFAULTS, getVendorCentralDomain, buildOrNormalizeUrl,
@@ -723,12 +745,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                   const contentDiv = document.createElement('div');
                   contentDiv.style.background = 'var(--bg-input)';
-                  contentDiv.style.padding = '8px';
-                  contentDiv.style.borderRadius = '4px';
                   contentDiv.style.marginTop = '4px';
-                  contentDiv.style.fontFamily = 'monospace';
-                  contentDiv.style.whiteSpace = 'pre-wrap';
-                  contentDiv.style.wordBreak = 'break-word';
+                  contentDiv.style.padding = '0';
 
                   // Generate Diff
                   contentDiv.innerHTML = generateWordDiffHtml(String(expected), String(actual || ""));
