@@ -1,68 +1,5 @@
   import { MS_CLIENT_ID, MS_AUTH_URL, MS_SCOPES } from './config.js';
-
-  // --- Feature: Word Diff Utility ---
-  const escapeHtml = (unsafe) => {
-      return (unsafe || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-  };
-
-  const generateWordDiffHtml = (expectedStr, actualStr) => {
-      const eWords = (expectedStr || "").split(/\s+/).filter(Boolean);
-      const aWords = (actualStr || "").split(/\s+/).filter(Boolean);
-
-      // Basic LCS based diff (Simple O(N*M) implementation for words)
-      const lcsMatrix = Array(eWords.length + 1).fill(null).map(() => Array(aWords.length + 1).fill(0));
-      for (let i = 1; i <= eWords.length; i++) {
-          for (let j = 1; j <= aWords.length; j++) {
-              if (eWords[i - 1] === aWords[j - 1]) {
-                  lcsMatrix[i][j] = lcsMatrix[i - 1][j - 1] + 1;
-              } else {
-                  lcsMatrix[i][j] = Math.max(lcsMatrix[i - 1][j], lcsMatrix[i][j - 1]);
-              }
-          }
-      }
-
-      let i = eWords.length;
-      let j = aWords.length;
-
-      const leftCol = [];
-      const rightCol = [];
-
-      while (i > 0 || j > 0) {
-          if (i > 0 && j > 0 && eWords[i - 1] === aWords[j - 1]) {
-              const word = escapeHtml(eWords[i - 1]);
-              leftCol.push(`<span>${word}</span>`);
-              rightCol.push(`<span>${word}</span>`);
-              i--;
-              j--;
-          } else if (j > 0 && (i === 0 || lcsMatrix[i][j - 1] >= lcsMatrix[i - 1][j])) {
-              const word = escapeHtml(aWords[j - 1]);
-              leftCol.push(`<span class="diff-empty"></span>`);
-              rightCol.push(`<ins class="diff-ins">${word}</ins>`);
-              j--;
-          } else if (i > 0 && (j === 0 || lcsMatrix[i][j - 1] < lcsMatrix[i - 1][j])) {
-              const word = escapeHtml(eWords[i - 1]);
-              leftCol.push(`<del class="diff-del">${word}</del>`);
-              rightCol.push(`<span class="diff-empty"></span>`);
-              i--;
-          }
-      }
-
-      leftCol.reverse();
-      rightCol.reverse();
-
-      return `
-          <div class="split-diff-container" style="display:flex; width:100%; border-radius:6px; overflow:hidden;">
-              <div class="split-diff-col split-diff-left" style="flex:1; display:flex; flex-direction:column; min-width:0; border-right:1px solid var(--border);">
-                  <div class="split-diff-header" style="background-color:var(--bg-input); border-bottom:1px solid var(--border); padding:4px 8px; font-weight:600; font-size:11px; text-align:center;">Expected</div>
-                  <div class="split-diff-content" style="padding:8px; font-family:monospace; font-size:11px; white-space:pre-wrap; word-break:break-word; height:100%;">${leftCol.join(' ')}</div>
-              </div>
-              <div class="split-diff-col split-diff-right" style="flex:1; display:flex; flex-direction:column; min-width:0;">
-                  <div class="split-diff-header" style="background-color:var(--bg-input); border-bottom:1px solid var(--border); padding:4px 8px; font-weight:600; font-size:11px; text-align:center;">Actual</div>
-                  <div class="split-diff-content" style="padding:8px; font-family:monospace; font-size:11px; white-space:pre-wrap; word-break:break-word; height:100%;">${rightCol.join(' ')}</div>
-              </div>
-          </div>
-      `;
-  };
+  import { generateTextDiff } from './src/utils/diffEngine.js';
   import {
       marketplaceData, ZIP_DEFAULTS, getVendorCentralDomain, buildOrNormalizeUrl,
       csvLineParser, parseAuditType2Csv, cleanAmazonUrl, cleanField,
@@ -744,12 +681,11 @@ document.addEventListener('DOMContentLoaded', () => {
                   section.appendChild(labelDiv);
 
                   const contentDiv = document.createElement('div');
-                  contentDiv.style.background = 'var(--bg-input)';
+                  contentDiv.className = 'split-diff-host';
                   contentDiv.style.marginTop = '4px';
-                  contentDiv.style.padding = '0';
 
                   // Generate Diff
-                  contentDiv.innerHTML = generateWordDiffHtml(String(expected), String(actual || ""));
+                  contentDiv.innerHTML = generateTextDiff(String(expected), String(actual || ""), { compact: true });
                   section.appendChild(contentDiv);
                   card.appendChild(section);
               };

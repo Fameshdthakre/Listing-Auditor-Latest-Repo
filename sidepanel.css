@@ -1,3 +1,5 @@
+@import url("./split-diff.css");
+
 :root {
 	/* Brand Colors - Electric Indigo Theme */
 	--primary: #6366f1;
@@ -1710,6 +1712,15 @@ body[data-theme="dark"] del.diff-del {
 .icon-btn:hover {
     background: rgba(0,0,0,0.05);
 }
-.diff-empty {
-    display: inline-block;
+.split-diff-host {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.split-diff-container {
+    --split-diff-border: var(--border);
+    --split-diff-header-bg: var(--bg-input);
+    --split-diff-cell-bg: transparent;
 }
