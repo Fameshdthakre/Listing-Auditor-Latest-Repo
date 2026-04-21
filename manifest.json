@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_appName__",
   "default_locale": "en",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "__MSG_appDesc__",
   "permissions": [
     "tabs",
@@ -77,7 +77,9 @@
         "https://sellercentral.amazon.com.mx/*",
         "https://sellercentral.amazon.com.tr/*"
       ],
-      "js": ["src/rpaAgent.js"],
+      "js": [
+        "src/rpaAgent.js"
+      ],
       "run_at": "document_end"
     }
   ],

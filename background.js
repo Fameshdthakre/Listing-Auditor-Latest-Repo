@@ -702,7 +702,7 @@ async function processBatch(state, stateKey) {
     }
 
     state.statusMessage = `Processing ${startIdx + 1} - ${endIdx} of ${total}`;
-    state.agentStatus.action = "Scraping Batch...";
+    state.agentStatus.action = state.mode === 'catalogue' ? "Auditing Batch..." : "Scraping Batch...";
     await chrome.storage.local.set({ [stateKey]: state });
 
     // Issue 3: Reduced Blocking Wait (Dynamic)

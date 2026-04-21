@@ -1,0 +1,61 @@
+.split-diff-container {
+    --split-diff-border: #e1e4e8;
+    --split-diff-header-bg: #f6f8fa;
+    --split-diff-cell-bg: #ffffff;
+    --split-diff-header-padding: 8px 16px;
+    --split-diff-cell-padding: 12px 16px;
+    --split-diff-header-font-size: 13px;
+    --split-diff-cell-font-size: 13px;
+    border-radius: 6px;
+    color: inherit;
+    overflow: hidden;
+    width: 100%;
+}
+
+.split-diff-compact {
+    --split-diff-header-padding: 4px 8px;
+    --split-diff-cell-padding: 8px;
+    --split-diff-header-font-size: 11px;
+    --split-diff-cell-font-size: 11px;
+}
+
+.split-diff-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.split-diff-header {
+    background-color: var(--split-diff-header-bg);
+    border-bottom: 1px solid var(--split-diff-border);
+    color: inherit;
+    font-size: var(--split-diff-header-font-size);
+    font-weight: 600;
+    padding: var(--split-diff-header-padding);
+    text-align: center;
+}
+
+.split-diff-header-left,
+.split-diff-cell-left {
+    border-right: 1px solid var(--split-diff-border);
+}
+
+.split-diff-cell {
+    background-color: var(--split-diff-cell-bg);
+    min-width: 0;
+    padding: var(--split-diff-cell-padding);
+}
+
+.split-diff-text,
+.split-diff-empty {
+    display: block;
+    font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: var(--split-diff-cell-font-size);
+    line-height: 1.5;
+    min-height: 1.5em;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.split-diff-empty {
+    visibility: hidden;
+}
