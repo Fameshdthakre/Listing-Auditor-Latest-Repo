@@ -14,6 +14,12 @@
   import { generateFlatFile, generateSupportPrompt } from './src/remediationAgent.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Update Version Labels (Dynamic Versioning)
+  const version = chrome.runtime.getManifest().version;
+  document.querySelectorAll('.app-version-label').forEach(el => {
+      el.textContent = `v${version}`;
+  });
+
   // Elements
   const scanBtn = document.getElementById('scanBtn');
   const stopBtn = document.getElementById('stopBtn');
@@ -634,212 +640,61 @@ document.addEventListener('DOMContentLoaded', () => {
       modalBody.textContent = ''; 
 
       if (MEGA_MODE === 'auditor') {
-          // Auditor Mode Detailed Diff View
+          // Auditor Mode Simplified View
           results.forEach(r => {
-              if (r.error || !r.attributes) return;
-
               const card = document.createElement('div');
               card.className = 'diff-card';
               card.style.border = '1px solid var(--border)';
-              card.style.marginBottom = '12px';
+              card.style.marginBottom = '8px';
               card.style.borderRadius = '6px';
               card.style.padding = '12px';
+              card.style.display = 'flex';
+              card.style.justifyContent = 'space-between';
+              card.style.alignItems = 'center';
 
+              const asin = r.attributes?.mediaAsin || r.queryASIN || 'Unknown ASIN';
+              
+              let passed = true;
+              if (r.error || (r._pendingAuditReport && r._pendingAuditReport.passed === false)) passed = false;
+
+              const infoDiv = document.createElement('div');
               const header = document.createElement('div');
               header.style.fontWeight = 'bold';
-              header.style.marginBottom = '8px';
-              header.textContent = `ASIN: ${r.attributes.mediaAsin || r.queryASIN}`;
-              card.appendChild(header);
+              header.textContent = `ASIN: ${asin}`;
+              
+              const statusBadge = document.createElement('span');
+              statusBadge.textContent = passed ? 'PASSED' : 'FAILED';
+              statusBadge.style.fontSize = '10px';
+              statusBadge.style.padding = '2px 6px';
+              statusBadge.style.borderRadius = '12px';
+              statusBadge.style.marginLeft = '8px';
+              statusBadge.style.backgroundColor = passed ? 'var(--success-bg)' : 'var(--danger-bg)';
+              statusBadge.style.color = passed ? 'var(--success)' : 'var(--danger)';
+              
+              header.appendChild(statusBadge);
+              infoDiv.appendChild(header);
 
-              const asin = r.attributes.mediaAsin || r.queryASIN;
               const viewDiffBtn = document.createElement('button');
-              viewDiffBtn.className = 'view-diff-btn';
-              viewDiffBtn.textContent = '🔍 View Diff Report';
-              viewDiffBtn.style.marginTop = '4px';
-              viewDiffBtn.style.marginBottom = '8px';
-              viewDiffBtn.style.padding = '4px 8px';
-              viewDiffBtn.style.fontSize = '12px';
+              viewDiffBtn.className = 'view-diff-btn btn btn-primary';
+              viewDiffBtn.textContent = '🔍 View Full Report';
+              viewDiffBtn.style.padding = '6px 12px';
+              viewDiffBtn.style.fontSize = '11px';
               viewDiffBtn.style.cursor = 'pointer';
-              viewDiffBtn.style.backgroundColor = '#f6f8fa';
-              viewDiffBtn.style.border = '1px solid #d1d5da';
-              viewDiffBtn.style.borderRadius = '3px';
+              viewDiffBtn.style.backgroundColor = 'var(--primary)';
+              viewDiffBtn.style.color = '#fff';
+              viewDiffBtn.style.border = 'none';
+              viewDiffBtn.style.borderRadius = '4px';
               viewDiffBtn.addEventListener('click', () => {
                   chrome.tabs.create({ url: chrome.runtime.getURL(`report.html?asin=${asin}`) });
               });
+
+              card.appendChild(infoDiv);
               card.appendChild(viewDiffBtn);
-
-              const addDiffSection = (label, expected, actual) => {
-                  if (!expected) return; // Only show if expected was provided
-                  const section = document.createElement('div');
-                  section.style.marginBottom = '8px';
-                  section.style.fontSize = '11px';
-
-                  const labelDiv = document.createElement('div');
-                  labelDiv.style.fontWeight = 'bold';
-                  labelDiv.style.color = 'var(--text-muted)';
-                  labelDiv.textContent = label;
-                  section.appendChild(labelDiv);
-
-                  const contentDiv = document.createElement('div');
-                  contentDiv.className = 'split-diff-host';
-                  contentDiv.style.marginTop = '4px';
-
-                  // Generate Diff
-                  contentDiv.innerHTML = generateTextDiff(String(expected), String(actual || ""), { compact: true });
-                  section.appendChild(contentDiv);
-                  card.appendChild(section);
-              };
-
-              // Map properties safely from the item
-              const normalizeDiffInput = (input) => {
-                  if (Array.isArray(input)) return input.join(' ');
-                  return String(input || "");
-              };
-
-              const expTitle = r.expected?.title || r.comparisonData?.expected_title;
-              const actTitle = r.attributes.metaTitle;
-              addDiffSection("Title", normalizeDiffInput(expTitle), normalizeDiffInput(actTitle));
-
-              const expBullets = r.expected?.bullets || r.comparisonData?.expected_bullets;
-              const actBullets = r.attributes.bullets;
-              addDiffSection("Bullets", normalizeDiffInput(expBullets), normalizeDiffInput(actBullets));
-
-              const expDesc = r.expected?.description || r.comparisonData?.expected_description;
-              const actDesc = r.attributes.description;
-              addDiffSection("Description", normalizeDiffInput(expDesc), normalizeDiffInput(actDesc));
-
-              // Render Support Case Logic for Variation Issues
-              if (r.error === undefined && r.attributes && r.comparisonData) {
-                  const expFamily = r.comparisonData.expected_variation_family ? (Array.isArray(r.comparisonData.expected_variation_family) ? r.comparisonData.expected_variation_family : JSON.parse(r.comparisonData.expected_variation_family.replace(/'/g, '"'))) : [];
-                  const liveFamily = r.attributes.variationFamily || [];
-                  const missingAsins = expFamily.filter(asin => !liveFamily.includes(asin));
-
-                  if (missingAsins.length > 0) {
-                      const orphanSection = document.createElement('div');
-                      orphanSection.style.marginBottom = '8px';
-                      orphanSection.style.fontSize = '11px';
-                      orphanSection.style.color = 'var(--danger)';
-                      orphanSection.innerHTML = `<strong>⚠️ Orphaned Variations Detected:</strong> ${missingAsins.join(', ')}`;
-
-                      const supportBtn = document.createElement('button');
-                      supportBtn.textContent = 'Copy Support Prompt';
-                      supportBtn.style.marginLeft = '8px';
-                      supportBtn.style.fontSize = '9px';
-                      supportBtn.style.padding = '2px 4px';
-                      supportBtn.style.cursor = 'pointer';
-                      supportBtn.addEventListener('click', () => {
-                          const promptText = generateSupportPrompt('variation_orphan', r, { missing: missingAsins.join(', ') });
-                          navigator.clipboard.writeText(promptText);
-                          supportBtn.textContent = 'Copied!';
-                          setTimeout(() => supportBtn.textContent = 'Copy Support Prompt', 2000);
-                      });
-
-                      orphanSection.appendChild(supportBtn);
-                      card.appendChild(orphanSection);
-                  }
-              }
-
-              // --- Feature: Agentic Auto-Remediation (Action Layer) ---
-              // Add a "Fix This" Button to the Card if there are text/attribute discrepancies
-              if (card.childNodes.length > 1) {
-                  const fixBtnContainer = document.createElement('div');
-                  fixBtnContainer.style.marginTop = '12px';
-                  fixBtnContainer.style.textAlign = 'right';
-                  fixBtnContainer.style.display = 'flex';
-                  fixBtnContainer.style.justifyContent = 'flex-end';
-                  fixBtnContainer.style.gap = '8px';
-
-                  const fixBtn = document.createElement('button');
-                  fixBtn.textContent = '🔧 Generate Flat File';
-                  fixBtn.className = 'auth-btn';
-                  fixBtn.style.background = 'var(--bg-input)';
-                  fixBtn.style.color = 'var(--text-main)';
-                  fixBtn.style.fontSize = '11px';
-                  fixBtn.style.padding = '6px 12px';
-                  fixBtn.style.border = '1px solid var(--border)';
-                  fixBtn.style.borderRadius = '4px';
-                  fixBtn.style.cursor = 'pointer';
-
-                  fixBtn.addEventListener('click', () => {
-                      const failedFields = [];
-                      if (normalizeDiffInput(expTitle) !== normalizeDiffInput(actTitle)) failedFields.push('title');
-                      if (normalizeDiffInput(expBullets) !== normalizeDiffInput(actBullets)) failedFields.push('bullets');
-                      if (normalizeDiffInput(expDesc) !== normalizeDiffInput(actDesc)) failedFields.push('description');
-
-                      if (failedFields.length > 0) {
-                          try {
-                              const { blob, fileName } = generateFlatFile(r, failedFields);
-                              const url = URL.createObjectURL(blob);
-                              const link = document.createElement('a');
-                              link.href = url;
-                              link.download = fileName;
-                              document.body.appendChild(link);
-                              link.click();
-                              document.body.removeChild(link);
-                              URL.revokeObjectURL(url);
-                          } catch (err) {
-                              alert(`Remediation Error: ${err.message}`);
-                          }
-                      } else {
-                          alert("No discrepancies detected for Flat File generation.");
-                      }
-                  });
-
-                  const rpaFixBtn = document.createElement('button');
-                  rpaFixBtn.textContent = '⚡ Auto-Fill in Seller Central';
-                  rpaFixBtn.className = 'rpa-fix-btn';
-                  rpaFixBtn.style.background = 'var(--primary)';
-                  rpaFixBtn.style.color = '#fff';
-                  rpaFixBtn.style.fontSize = '11px';
-                  rpaFixBtn.style.padding = '6px 12px';
-                  rpaFixBtn.style.border = 'none';
-                  rpaFixBtn.style.borderRadius = '4px';
-                  rpaFixBtn.style.cursor = 'pointer';
-
-                  rpaFixBtn.addEventListener('click', () => {
-                      const failedFields = [];
-                      if (normalizeDiffInput(expTitle) !== normalizeDiffInput(actTitle)) failedFields.push('title');
-                      if (normalizeDiffInput(expBullets) !== normalizeDiffInput(actBullets)) failedFields.push('bullets');
-                      if (normalizeDiffInput(expDesc) !== normalizeDiffInput(actDesc)) failedFields.push('description');
-
-                      if (failedFields.length > 0) {
-                          // Assemble payload for RPA auto-fill
-                          const payload = {
-                              asin: r.attributes.mediaAsin || r.queryASIN,
-                              fields: {}
-                          };
-                          if (failedFields.includes('title')) payload.fields.title = normalizeDiffInput(expTitle);
-                          if (failedFields.includes('bullets')) payload.fields.bullets = normalizeDiffInput(expBullets);
-                          if (failedFields.includes('description')) payload.fields.description = normalizeDiffInput(expDesc);
-
-                          rpaFixBtn.textContent = '⚡ Sending...';
-                          rpaFixBtn.disabled = true;
-
-                          chrome.runtime.sendMessage({
-                              action: 'ACTION_START_RPA',
-                              payload: payload
-                          }, (response) => {
-                              rpaFixBtn.textContent = '⚡ Auto-Fill in Seller Central';
-                              rpaFixBtn.disabled = false;
-                              if (chrome.runtime.lastError) {
-                                  alert("Error communicating with background script: " + chrome.runtime.lastError.message);
-                              }
-                          });
-                      } else {
-                          alert("No discrepancies detected for RPA injection.");
-                      }
-                  });
-
-                  fixBtnContainer.appendChild(fixBtn);
-                  fixBtnContainer.appendChild(rpaFixBtn);
-                  card.appendChild(fixBtnContainer);
-
-                  modalBody.appendChild(card);
-              }
+              modalBody.appendChild(card);
           });
 
           if (modalBody.childNodes.length === 0) {
-              modalBody.textContent = 'No text mismatches to preview or missing expected data.';
+              modalBody.textContent = 'No audit results to preview.';
           }
 
       } else {
@@ -2473,12 +2328,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
           grid.appendChild(colInfo);
 
-          // Column 2: Date
+          // Column 2: Date & Sparkline (Phase 2)
           const colDate = document.createElement('div');
           colDate.style.textAlign = 'center';
           colDate.style.fontSize = '10px';
           colDate.style.color = 'var(--text-muted)';
-          colDate.textContent = lastScanDate;
+          colDate.style.display = 'flex';
+          colDate.style.flexDirection = 'column';
+          colDate.style.alignItems = 'center';
+          colDate.style.gap = '2px';
+
+          const dateSpan = document.createElement('span');
+          dateSpan.textContent = lastScanDate;
+          colDate.appendChild(dateSpan);
+
+          if (item.history && item.history.length > 1) {
+              const sparkContainer = document.createElement('div');
+              sparkContainer.className = 'sparkline-container';
+              const canvas = document.createElement('canvas');
+              canvas.className = 'sparkline-canvas';
+              canvas.width = 60;
+              canvas.height = 20;
+              sparkContainer.appendChild(canvas);
+              colDate.appendChild(sparkContainer);
+              
+              // Render Sparkline for Review Count
+              setTimeout(() => renderSparkline(canvas, item.history.map(h => h.reviews || 0)), 0);
+          }
+
           grid.appendChild(colDate);
 
           // Column 3: Status & Actions
@@ -2486,11 +2363,26 @@ document.addEventListener('DOMContentLoaded', () => {
           colActions.style.textAlign = 'right';
           colActions.style.fontSize = '14px';
           colActions.style.cursor = 'default';
+          colActions.style.display = 'flex';
+          colActions.style.justifyContent = 'flex-end';
+          colActions.style.alignItems = 'center';
           colActions.title = statusTitle;
 
           const statusSpan = document.createElement('span');
           statusSpan.textContent = statusIcon;
           colActions.appendChild(statusSpan);
+
+          // Velocity Badge (Phase 2)
+          if (item.lastScan && item.lastScan.velocity !== undefined) {
+              const velocity = parseFloat(item.lastScan.velocity);
+              if (velocity !== 0) {
+                  const vBadge = document.createElement('span');
+                  vBadge.className = `velocity-badge ${velocity > 0 ? 'velocity-up' : 'velocity-down'}`;
+                  vBadge.textContent = `${velocity > 0 ? '↑' : '↓'} ${Math.abs(velocity).toFixed(1)}/d`;
+                  vBadge.title = `Review Velocity: ${velocity.toFixed(2)} reviews per day`;
+                  colActions.appendChild(vBadge);
+              }
+          }
 
           const chartBtn = document.createElement('span');
           chartBtn.className = 'wl-chart';
@@ -2573,7 +2465,8 @@ document.addEventListener('DOMContentLoaded', () => {
                   id: item.asin,
                   url: item.url,
                   expected: item.expected,
-                  comparisonData: item.comparisonData
+                  comparisonData: item.comparisonData,
+                  history: item.history || []
               });
 
               // Check for Draft Links in Comparison Data
@@ -2636,8 +2529,29 @@ document.addEventListener('DOMContentLoaded', () => {
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === 'SCAN_COMPLETE' && request.mode === 'catalogue') {
           updateCatalogueAfterScan(request.results);
+      } else if (request.action === 'AUDIT_PROGRESS_UPDATE') {
+          updateLiveItemStatus(request.asin, request.report);
       }
   });
+
+  const updateLiveItemStatus = (asin, report) => {
+      // Find the item in the UI and update it
+      const items = catalogueItemsDiv.querySelectorAll('.wl-item');
+      for (let itemDiv of items) {
+          const asinLink = itemDiv.querySelector('.wl-info a');
+          if (asinLink && asinLink.textContent === asin) {
+              const statusSpan = itemDiv.querySelector('div[style*="text-align: right"] span');
+              if (statusSpan) {
+                  let icon = '🟢';
+                  if (report.score < 70) icon = '🟠';
+                  if (report.score === 0) icon = '🔴';
+                  statusSpan.textContent = icon;
+                  statusSpan.title = `Live Score: ${report.score}%`;
+              }
+              break;
+          }
+      }
+  };
 
   const updateCatalogueAfterScan = (results) => {
       const key = getCatalogueContainerKey();
@@ -2670,15 +2584,30 @@ document.addEventListener('DOMContentLoaded', () => {
                       }
                   }
 
-                  return {
-                      ...item,
-                      lastScan: {
-                          date: now,
-                          status: status,
-                          priceChange: priceChange,
-                          lastLqs: result.attributes.lqs
-                      }
-                  };
+                   const historyEntry = {
+                       date: now,
+                       rating: result.attributes.rating,
+                       reviews: result.attributes.reviews,
+                       bsr: result.attributes.bsr,
+                       price: result.attributes.displayPrice,
+                       lqs: result.attributes.lqs,
+                       score: result._pendingAuditReport ? result._pendingAuditReport.score : 0
+                   };
+
+                   const newHistory = item.history ? [...item.history, historyEntry] : [historyEntry];
+                   if (newHistory.length > 10) newHistory.shift(); // Keep last 10
+
+                   return {
+                       ...item,
+                       history: newHistory,
+                       lastScan: {
+                           date: now,
+                           status: status,
+                           priceChange: priceChange,
+                           lastLqs: result.attributes.lqs,
+                           lastScore: result._pendingAuditReport ? result._pendingAuditReport.score : 0
+                       }
+                   };
               }
               return item;
           });
@@ -4244,17 +4173,32 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateDashboard(results) {
       let totalLqs = 0; let issueCount = 0; let mismatchCount = 0;
       results.forEach(item => {
-          if (item.attributes && item.attributes.lqs) {
-              const score = parseInt(item.attributes.lqs.split('/')[0]);
-              if (!isNaN(score)) totalLqs += score;
-              if (score < 70) issueCount++;
+          if (MEGA_MODE === 'auditor') {
+               const score = item._pendingAuditReport ? item._pendingAuditReport.score : 0;
+               if (!isNaN(score)) totalLqs += score;
+               if (item.error || (item._pendingAuditReport && item._pendingAuditReport.passed === false)) issueCount++;
+          } else {
+              if (item.attributes && item.attributes.lqs) {
+                  const score = parseInt(item.attributes.lqs.split('/')[0]);
+                  if (!isNaN(score)) totalLqs += score;
+                  if (score < 70) issueCount++;
+              }
+              if (item.expected && item.attributes.metaTitle !== item.expected.title) mismatchCount++;
           }
-          if (item.expected && item.attributes.metaTitle !== item.expected.title) mismatchCount++;
       });
       const avg = results.length ? Math.round(totalLqs / results.length) : 0;
       statTotal.textContent = results.length;
-      statLqs.textContent = avg + '/100';
-      statIssues.textContent = mismatchCount > 0 ? `${mismatchCount} Diff` : issueCount;
+      
+      const statLqsLabel = document.querySelector('#dashboardView .dash-card:nth-child(2) .dash-label');
+      if (MEGA_MODE === 'auditor') {
+          if (statLqsLabel) statLqsLabel.textContent = 'Avg Score';
+          statLqs.textContent = avg + '%';
+          statIssues.textContent = issueCount + ' Fails';
+      } else {
+          if (statLqsLabel) statLqsLabel.textContent = 'Avg LQS';
+          statLqs.textContent = avg + '/100';
+          statIssues.textContent = mismatchCount > 0 ? `${mismatchCount} Diff` : issueCount;
+      }
 
       // Duration is updated in renderState now using persistent storage
 
@@ -6497,6 +6441,39 @@ Element ID: ${elementData.id}`;
           }
       }
   });
+
+  function renderSparkline(canvas, data) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      
+      ctx.clearRect(0, 0, w, h);
+      if (!data || data.length < 2) return;
+
+      const min = Math.min(...data);
+      const max = Math.max(...data);
+      const range = max - min || 1;
+
+      ctx.beginPath();
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+
+      data.forEach((val, i) => {
+          const x = (i / (data.length - 1)) * w;
+          const y = h - ((val - min) / range) * (h - 4) - 2;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+      });
+
+      ctx.stroke();
+
+      // Area fill
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.fillStyle = 'rgba(99, 102, 241, 0.1)';
+      ctx.fill();
+  }
 
   // Call on load
   loadCustomRules();

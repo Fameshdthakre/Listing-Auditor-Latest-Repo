@@ -1,5 +1,8 @@
 import { filterAmazonAODOffer, getPortalDomain, marketplaceData } from './scraperEngine.js';
 import { userAgents } from './src/utils/userAgents.js';
+import { runAuditComparison } from './auditorEngine.js';
+import { AuditScheduler } from './src/utils/scheduler.js';
+import { AuditNotifier } from './src/utils/notifier.js';
 
 // background.js - Robust Batch Processing (Current Window)
 
@@ -213,10 +216,63 @@ async function clearProxy() {
             removeRuleIds: [PROXY_AUTH_RULE_ID]
         });
         console.log("Proxy cleared (Direct connection restored).");
-    } catch (e) {
+} catch (e) {
         console.error("Failed to clear proxy:", e);
     }
 }
+
+// --- ALARM HANDLER (PHASE 3) ---
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+    // 1. Handle Growth/Monitor Alarms (Legacy)
+    if (alarm.name === 'growthMonitor') {
+        // ... legacy logic if needed
+    }
+
+    // 2. Handle Catalogue Audit Alarms (New Phase 3)
+    if (alarm.name.startsWith(AuditScheduler.ALARM_PREFIX)) {
+        const catalogueId = alarm.name.replace(AuditScheduler.ALARM_PREFIX, '');
+        console.log(`Triggering scheduled audit for catalogue: ${catalogueId}`);
+        
+        const key = (await chrome.storage.local.get('userSession')).userSession ? 'catalogues_pro' : 'catalogues_guest';
+        const data = await chrome.storage.local.get(key);
+        const container = data[key];
+        
+        if (container && container[catalogueId]) {
+            const list = container[catalogueId].items;
+            if (list.length === 0) return;
+
+            const urlsToProcess = list.map(item => ({
+                id: item.asin,
+                url: item.url,
+                expected: item.expected,
+                comparisonData: item.comparisonData,
+                history: item.history || []
+            }));
+
+            const silentSettings = {
+                disableImages: false,
+                imageSource: 'catalogue',
+                isSilent: true
+            };
+
+            await startScan({ urls: urlsToProcess, mode: 'catalogue', settings: silentSettings });
+        }
+    }
+
+    // 3. Handle Watchdog / Queue Processing (Legacy / Self-Healing)
+    const stateData = await chrome.storage.local.get(['scraperState', 'auditorState']);
+    if (stateData.scraperState && stateData.scraperState.isScanning) {
+        if (alarm.name === 'QUEUE_PROCESS' || alarm.name === 'WATCHDOG') {
+            if (alarm.name === 'WATCHDOG') console.log("Watchdog triggered for Scraper. Running processBatch to ensure we are not stuck.");
+            await processBatch(stateData.scraperState, 'scraperState');
+        }
+    } else if (stateData.auditorState && stateData.auditorState.isScanning) {
+        if (alarm.name === 'QUEUE_PROCESS' || alarm.name === 'WATCHDOG') {
+            if (alarm.name === 'WATCHDOG') console.log("Watchdog triggered for Auditor. Running processBatch to ensure we are not stuck.");
+            await processBatch(stateData.auditorState, 'auditorState');
+        }
+    }
+});
 
 // --- Event Listeners ---
 
@@ -281,24 +337,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             // Ideally, let the resolver handle cleanup.
         }
     }
-});
-
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  // Check both states
-  const data = await chrome.storage.local.get(['scraperState', 'auditorState']);
-  
-  if (data.scraperState && data.scraperState.isScanning) {
-      if (alarm.name === 'QUEUE_PROCESS' || alarm.name === 'WATCHDOG') {
-          // If watchdog triggered, maybe we are stuck. Force a run.
-          if (alarm.name === 'WATCHDOG') console.log("Watchdog triggered for Scraper. Running processBatch to ensure we are not stuck.");
-          await processBatch(data.scraperState, 'scraperState');
-      }
-  } else if (data.auditorState && data.auditorState.isScanning) {
-      if (alarm.name === 'QUEUE_PROCESS' || alarm.name === 'WATCHDOG') {
-          if (alarm.name === 'WATCHDOG') console.log("Watchdog triggered for Auditor. Running processBatch to ensure we are not stuck.");
-          await processBatch(data.auditorState, 'auditorState');
-      }
-  }
 });
 
 // --- Core Functions ---
@@ -702,7 +740,7 @@ async function processBatch(state, stateKey) {
     }
 
     state.statusMessage = `Processing ${startIdx + 1} - ${endIdx} of ${total}`;
-    state.agentStatus.action = "Scraping Batch...";
+    state.agentStatus.action = state.mode === 'catalogue' ? "Auditing Batch..." : "Scraping Batch...";
     await chrome.storage.local.set({ [stateKey]: state });
 
     // Issue 3: Reduced Blocking Wait (Dynamic)
@@ -1071,6 +1109,30 @@ async function auditSingleAsin(item, state, trackCreateTab) {
             }
 
             if (res.error && !res.url) res.url = url;
+
+            // --- LIVE AUDIT INTEGRATION (PHASE 2) ---
+            if (state.mode === 'catalogue' && res.comparisonData) {
+                const customRules = state.settings.customRules || [];
+                const visualData = {
+                    targetImagesBase64: res.comparisonData.expected_images,
+                    liveImageUrls: res.images, // Array of {variant, hiRes...}
+                    deepInsight: state.settings.deepVisualAudit || false
+                };
+                const auditOptions = {
+                    matchStrictness: state.settings.matchStrictness || 'fuzzy'
+                };
+
+                // Execute Audit
+                const history = res.history || [];
+                res._pendingAuditReport = await runAuditComparison(res.attributes, res.comparisonData, customRules, visualData, auditOptions, history);
+
+                // Stream real-time result to Sidepanel
+                chrome.runtime.sendMessage({
+                    action: 'AUDIT_PROGRESS_UPDATE',
+                    asin: res.queryASIN || (res.attributes ? res.attributes.mediaAsin : "none"),
+                    report: res._pendingAuditReport
+                }).catch(() => {});
+            }
 
             // Log Page Not Found errors
             if (res.error === "PAGE_NOT_FOUND_404") {

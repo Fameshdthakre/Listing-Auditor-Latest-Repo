@@ -3,29 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visual Diff Report</title>
+    <title>Listing Auditor - Detailed Report</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="report.css">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1 id="reportAsin">ASIN: Loading...</h1>
-            <div id="overallStatus" class="status-badge status-fail">FAILED</div>
-        </div>
-
-        <div id="textAuditSection" class="section" style="display: none;">
-            <div class="section-header">📝 Text Audit (Discrepancies)</div>
-            <div id="textAuditContent" class="section-content">
-                <!-- Text diffs injected here -->
+    <div class="app-wrapper">
+        <header class="top-nav">
+            <div class="nav-brand">
+                <img src="images/icon48.png" alt="Logo" class="logo">
+                <div class="brand-text">
+                    <h1>Listing Auditor</h1>
+                    <span class="subtitle">Detailed Audit Report</span>
+                </div>
             </div>
-        </div>
-
-        <div id="visualAuditSection" class="section" style="display: none;">
-            <div class="section-header">🖼️ Visual Audit (Discrepancies)</div>
-            <div id="visualAuditContent" class="section-content">
-                <!-- Image comparisons injected here -->
+            <div class="nav-actions">
+                <button id="themeToggle" class="icon-btn" title="Toggle Theme">🌙</button>
             </div>
-        </div>
+        </header>
+
+        <main class="report-container">
+            <!-- Header Section: ASIN & Overall Status -->
+            <section class="report-hero">
+                <div class="hero-content">
+                    <div class="asin-display">
+                        <span class="label">ASIN</span>
+                        <h2 id="reportAsin">Loading...</h2>
+                    </div>
+                    <div class="hero-actions" id="heroActions" style="display: none;">
+                        <button id="generateFlatFileBtn" class="btn btn-primary">
+                            <span class="icon">🔧</span> Generate Flat File
+                        </button>
+                        <button id="autoFillSellerCentralBtn" class="btn btn-secondary">
+                            <span class="icon">⚡</span> Auto-Fill in Seller Central
+                        </button>
+                    </div>
+                </div>
+                <div class="hero-metrics">
+                    <div class="metric-card">
+                        <div class="metric-label">Overall Status</div>
+                        <div id="overallStatus" class="status-badge status-fail">FAILED</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Match Score</div>
+                        <div id="matchScore" class="metric-value">--%</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Text Audit Section -->
+            <section id="textAuditSection" class="audit-section" style="display: none;">
+                <div class="section-header">
+                    <h3>📝 Text Content Discrepancies</h3>
+                    <p class="section-desc">Differences between your Golden Record and the Live Amazon Listing.</p>
+                </div>
+                <div id="textAuditContent" class="section-content grid-layout">
+                    <!-- Text diffs injected here -->
+                </div>
+            </section>
+
+            <!-- Visual Audit Section -->
+            <section id="visualAuditSection" class="audit-section" style="display: none;">
+                <div class="section-header">
+                    <h3>🖼️ Visual Content Discrepancies</h3>
+                    <p class="section-desc">AI-detected differences in product imagery.</p>
+                </div>
+                <div id="visualAuditContent" class="section-content">
+                    <!-- Image comparisons injected here -->
+                </div>
+            </section>
+        </main>
     </div>
 
     <script type="module" src="report.js"></script>

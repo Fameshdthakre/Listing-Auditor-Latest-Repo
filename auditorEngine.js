@@ -33,7 +33,7 @@ export const auditVisuals = async (targetImagesBase64, liveImageUrls, deepInsigh
     }
 };
 
-export const runAuditComparison = async (liveData, sourceData, customRules = [], visualData = null, auditOptions = {}) => {
+export const runAuditComparison = async (liveData, sourceData, customRules = [], visualData = null, auditOptions = {}, history = []) => {
     const report = {
         score: 0,
         totalChecks: 0,
@@ -50,7 +50,7 @@ export const runAuditComparison = async (liveData, sourceData, customRules = [],
     report.results.content = auditContent(live, source, auditOptions);
 
     // 2. Growth Audit
-    report.results.growth = auditGrowth(live, source);
+    report.results.growth = auditGrowth(live, source, history);
 
     // 3. Image Audit
     report.results.images = auditImages(live, source);
@@ -163,8 +163,46 @@ export const runAuditComparison = async (liveData, sourceData, customRules = [],
     });
     report.score = total > 0 ? Math.round((passed / total) * 100) : 0;
     report.totalChecks = total;
+    // 13. Risk Scoring (Phase 3)
+    report.score = calculateRiskScore(report.results);
 
     return report;
+};
+
+/**
+ * Calculates a Risk Score (0-100) based on weighted audit failures.
+ * 100 = Perfect, 0 = Critical Failures.
+ */
+const calculateRiskScore = (results) => {
+    const WEIGHTS = {
+        buybox: 25,      // Critical: Hijacks, Price spikes
+        variation: 15,   // High: Split families
+        content: 15,     // High: Title/Brand hijacks
+        images: 10,      // Med: Missing images
+        delivery: 10,    // Med: Prime loss
+        aplus: 5,        // Low: Layout changes
+        brandStory: 5,   // Low
+        video: 5,        // Low
+        comparison: 5,   // Low
+        growth: 5        // Low: Rating drop
+    };
+
+    let totalPossible = 0;
+    let earned = 0;
+
+    for (const [key, weight] of Object.entries(WEIGHTS)) {
+        if (!results[key] || results[key].status === 'skipped') continue;
+        
+        totalPossible += weight;
+        if (results[key].passed !== false) {
+            earned += weight;
+        } else {
+            // Partial credit logic could go here if results had a percentage
+        }
+    }
+
+    if (totalPossible === 0) return 100;
+    return Math.round((earned / totalPossible) * 100);
 };
 
 // --- AUDIT REQUIREMENTS MAPPING ---
@@ -779,8 +817,8 @@ const calculateGrowth = (label, expectedRaw, actualRaw, isFloat = false) => {
     };
 };
 
-const auditGrowth = (live, source) => {
-    const res = { passed: true, details: [] };
+const auditGrowth = (live, source, history = []) => {
+    const res = { passed: true, details: [], velocity: 0 };
     let checks = 0;
 
     if (source.rating) {
@@ -795,6 +833,18 @@ const auditGrowth = (live, source) => {
         const result = calculateGrowth("Reviews", source.reviews, live.reviews, false);
         res.details.push(result);
         if (!result.passed) res.passed = false;
+    }
+
+    // Historical Trend Analysis (Phase 2)
+    if (history && history.length > 1) {
+        const last = history[history.length - 1];
+        const prev = history[history.length - 2];
+
+        // Calculate Velocity (reviews per day)
+        const timeDelta = (last.date - prev.date) / (1000 * 60 * 60 * 24); // days
+        if (timeDelta > 0) {
+            res.velocity = (live.reviews - prev.reviews) / timeDelta;
+        }
     }
 
     if (checks === 0) res.status = 'skipped';
